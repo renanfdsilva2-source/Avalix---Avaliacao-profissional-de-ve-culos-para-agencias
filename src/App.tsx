@@ -11,6 +11,9 @@ import { supabase } from "@/integrations/supabase/client";
 import Index from "./pages/Index.tsx";
 import Agenda from "./pages/Agenda.tsx";
 import Login from "./pages/Login.tsx";
+import Register from "./pages/Register.tsx";
+import ForgotPassword from "./pages/ForgotPassword.tsx";
+import ResetPassword from "./pages/ResetPassword.tsx";
 import NotFound from "./pages/NotFound.tsx";
 import { AlarmModal } from "@/components/AlarmModal";
 import { useAppointmentAlarm } from "@/hooks/useAppointmentAlarm";
@@ -20,9 +23,12 @@ const queryClient = new QueryClient();
 const useSession = () => {
   const [session, setSession] = useState<Session | null>(null);
   const [loading, setLoading] = useState(true);
+  const [recovery, setRecovery] = useState(false);
   useEffect(() => {
-    const { data: sub } = supabase.auth.onAuthStateChange((_e, s) => {
+    // IMPORTANT: subscribe BEFORE getSession to avoid races
+    const { data: sub } = supabase.auth.onAuthStateChange((event, s) => {
       setSession(s);
+      if (event === "PASSWORD_RECOVERY") setRecovery(true);
       setLoading(false);
     });
     supabase.auth.getSession().then(({ data }) => {
@@ -31,7 +37,7 @@ const useSession = () => {
     });
     return () => sub.subscription.unsubscribe();
   }, []);
-  return { session, loading };
+  return { session, loading, recovery };
 };
 
 const Shell = ({ children }: { children: React.ReactNode }) => (
@@ -58,20 +64,38 @@ const AuthedArea = () => {
 };
 
 const Gate = () => {
-  const { session, loading } = useSession();
-  if (loading) return <div className="min-h-screen flex items-center justify-center text-muted-foreground">Carregando...</div>;
-  if (!session) {
+  const { session, loading, recovery } = useSession();
+
+  if (loading) {
     return (
-      <Routes>
-        <Route path="/login" element={<Login />} />
-        <Route path="*" element={<Navigate to="/login" replace />} />
-      </Routes>
+      <div className="min-h-screen flex items-center justify-center text-muted-foreground">
+        Carregando...
+      </div>
     );
   }
+
+  // Public routes — always accessible.
+  // /reset-password must remain public so the recovery hash can establish
+  // the temporary session before the user sets a new password.
   return (
     <Routes>
-      <Route path="/login" element={<Navigate to="/" replace />} />
-      <Route path="/*" element={<AuthedArea />} />
+      <Route path="/reset-password" element={<ResetPassword />} />
+      <Route
+        path="/login"
+        element={session && !recovery ? <Navigate to="/" replace /> : <Login />}
+      />
+      <Route
+        path="/register"
+        element={session && !recovery ? <Navigate to="/" replace /> : <Register />}
+      />
+      <Route
+        path="/forgot-password"
+        element={session && !recovery ? <Navigate to="/" replace /> : <ForgotPassword />}
+      />
+      <Route
+        path="/*"
+        element={session ? <AuthedArea /> : <Navigate to="/login" replace />}
+      />
     </Routes>
   );
 };
