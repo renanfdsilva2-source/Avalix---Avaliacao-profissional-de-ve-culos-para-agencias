@@ -380,6 +380,16 @@ const Index = () => {
   };
 
   const handleSaveDraft = async () => {
+    // Sempre salva localmente primeiro (síncrono via auto-save IndexedDB).
+    if (!online) {
+      await saveLocalDraft({
+        evaluationId,
+        state: stateSnapshot as Record<string, unknown>,
+        updatedAt: Date.now(),
+      });
+      toast.success("Rascunho salvo no dispositivo. Será sincronizado quando voltar online.");
+      return;
+    }
     const id = await persist("draft");
     if (id) toast.success("Rascunho salvo!");
   };
