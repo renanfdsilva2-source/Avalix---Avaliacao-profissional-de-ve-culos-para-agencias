@@ -1,0 +1,222 @@
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap');
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* AVALIX design system — corporate automotive enterprise theme. All colors HSL. */
+
+@layer base {
+  :root {
+    /* Corporate automotive — deep navy + premium blue */
+    --background: 213 64% 7%;          /* #07111F preto automotivo */
+    --foreground: 214 32% 98%;         /* #F7F9FC branco empresarial */
+
+    --card: 214 30% 11%;
+    --card-foreground: 214 32% 98%;
+
+    --popover: 214 30% 11%;
+    --popover-foreground: 214 32% 98%;
+
+    --primary: 214 100% 43%;           /* #0057D9 azul corporativo */
+    --primary-foreground: 214 32% 98%;
+    --primary-glow: 211 100% 52%;      /* #0A84FF azul premium */
+
+    --secondary: 214 26% 15%;          /* #1B2430 grafite */
+    --secondary-foreground: 214 32% 98%;
+
+    --muted: 214 24% 13%;
+    --muted-foreground: 218 14% 62%;   /* #667085 cinza profissional clareado */
+
+    --accent: 211 100% 52%;
+    --accent-foreground: 214 32% 98%;
+
+    --destructive: 0 70% 50%;
+    --destructive-foreground: 214 32% 98%;
+
+    --success: 152 65% 42%;
+    --success-foreground: 214 32% 98%;
+
+    --warning: 38 92% 50%;
+    --warning-foreground: 213 64% 7%;
+
+    --border: 214 26% 18%;
+    --input: 214 26% 14%;
+    --ring: 211 100% 52%;
+
+    --radius: 0.625rem;
+
+    /* Effects — corporate, discreet */
+    --gradient-primary: linear-gradient(135deg, hsl(214 100% 43%), hsl(211 100% 52%));
+    --gradient-card: linear-gradient(165deg, hsl(214 30% 12%) 0%, hsl(214 32% 9%) 100%);
+    --gradient-bg:
+      radial-gradient(ellipse 80% 50% at 50% -10%, hsl(214 100% 43% / 0.18), transparent 60%),
+      radial-gradient(ellipse 60% 40% at 100% 100%, hsl(211 100% 52% / 0.08), transparent 60%),
+      linear-gradient(180deg, hsl(214 50% 9%), hsl(213 64% 6%) 70%);
+    --gradient-header: linear-gradient(180deg, hsl(214 40% 10% / 0.92), hsl(213 50% 8% / 0.85));
+    --shadow-card: 0 1px 0 hsl(214 30% 20% / 0.4) inset, 0 12px 32px -16px hsl(213 80% 2% / 0.7);
+    --shadow-elevated: 0 24px 60px -24px hsl(213 90% 2% / 0.85), 0 2px 0 hsl(214 30% 22% / 0.4) inset;
+    --shadow-glow: 0 0 0 1px hsl(211 100% 52% / 0.25), 0 14px 30px -10px hsl(214 100% 43% / 0.5);
+    --shadow-button: 0 1px 0 hsl(0 0% 100% / 0.08) inset, 0 6px 14px -6px hsl(214 100% 43% / 0.6);
+    --shadow-inset: inset 0 1px 0 hsl(0 0% 100% / 0.04);
+
+    --transition-smooth: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+  }
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+
+  html, body, #root {
+    @apply min-h-screen;
+  }
+
+  html {
+    font-family: 'Inter', system-ui, -apple-system, 'SF Pro Display', 'Segoe UI', sans-serif;
+  }
+
+  body {
+    @apply bg-background text-foreground antialiased;
+    background: var(--gradient-bg);
+    background-attachment: fixed;
+    font-feature-settings: "cv11", "ss01", "ss03";
+    letter-spacing: -0.005em;
+  }
+
+  h1, h2, h3, h4 {
+    letter-spacing: -0.02em;
+  }
+
+  /* Subtle scrollbar */
+  ::-webkit-scrollbar { width: 10px; height: 10px; }
+  ::-webkit-scrollbar-track { background: hsl(var(--background)); }
+  ::-webkit-scrollbar-thumb {
+    background: hsl(var(--secondary));
+    border-radius: 8px;
+    border: 2px solid hsl(var(--background));
+  }
+  ::-webkit-scrollbar-thumb:hover { background: hsl(var(--border)); }
+}
+
+@layer components {
+  .panel {
+    @apply rounded-xl border border-border/70 p-5 sm:p-6 relative;
+    background: var(--gradient-card);
+    box-shadow: var(--shadow-card);
+  }
+
+  .panel::before {
+    content: "";
+    position: absolute;
+    inset: 0 0 auto 0;
+    height: 1px;
+    background: linear-gradient(90deg, transparent, hsl(211 100% 52% / 0.35), transparent);
+    border-radius: inherit;
+    pointer-events: none;
+  }
+
+  .field-label {
+    @apply text-[10.5px] font-semibold uppercase tracking-[0.12em] text-muted-foreground;
+  }
+
+  .icon-chip {
+    @apply flex h-9 w-9 items-center justify-center rounded-lg relative;
+    background: var(--gradient-primary);
+    color: hsl(var(--primary-foreground));
+    box-shadow:
+      0 1px 0 hsl(0 0% 100% / 0.18) inset,
+      0 8px 18px -8px hsl(214 100% 43% / 0.7);
+  }
+
+  .corporate-divider {
+    height: 1px;
+    background: linear-gradient(90deg, transparent, hsl(var(--border)) 30%, hsl(var(--border)) 70%, transparent);
+  }
+
+  .kpi-card {
+    @apply panel flex flex-col gap-1;
+  }
+
+  .btn-primary-corp {
+    background: var(--gradient-primary);
+    box-shadow: var(--shadow-button);
+    @apply text-primary-foreground font-semibold;
+    transition: var(--transition-smooth);
+  }
+  .btn-primary-corp:hover { filter: brightness(1.06); transform: translateY(-1px); }
+  .btn-primary-corp:active { transform: translateY(0); filter: brightness(0.96); }
+}
+
+/* ── Micro-interactions & animations ───────────────────────────────── */
+@layer utilities {
+  /* Subtle fade/lift entrance for panels and cards */
+  @keyframes panel-enter {
+    from { opacity: 0; transform: translateY(6px); }
+    to   { opacity: 1; transform: translateY(0); }
+  }
+  .panel-enter {
+    animation: panel-enter 0.35s cubic-bezier(0.16, 1, 0.3, 1) both;
+  }
+
+  /* Hover lift for interactive surfaces */
+  .lift {
+    transition: transform 0.2s ease, box-shadow 0.2s ease;
+  }
+  .lift:hover { transform: translateY(-1px); }
+
+  /* Focus ring corporate */
+  .focus-ring:focus-visible {
+    outline: none;
+    box-shadow: 0 0 0 2px hsl(var(--background)), 0 0 0 4px hsl(var(--primary-glow) / 0.55);
+  }
+
+  /* Highlight pulse used by sidebar scroll-spy navigation */
+  @keyframes ring-flash {
+    0%   { box-shadow: 0 0 0 0 hsl(var(--primary-glow) / 0); }
+    20%  { box-shadow: 0 0 0 3px hsl(var(--primary-glow) / 0.55); }
+    100% { box-shadow: 0 0 0 0 hsl(var(--primary-glow) / 0); }
+  }
+  .ring-flash {
+    animation: ring-flash 0.9s ease-out;
+  }
+
+  /* Shimmering value highlight */
+  @keyframes shimmer {
+    0% { background-position: -150% 0; }
+    100% { background-position: 250% 0; }
+  }
+
+  /* Smooth scroll on the document */
+  html { scroll-behavior: smooth; }
+}
+
+/* Refined micro-interactions on existing components */
+@layer components {
+  .panel {
+    transition: border-color 0.25s ease, box-shadow 0.25s ease, transform 0.25s ease;
+  }
+  .panel:hover {
+    border-color: hsl(var(--primary) / 0.35);
+    box-shadow: var(--shadow-card), 0 0 0 1px hsl(var(--primary-glow) / 0.08);
+  }
+
+  /* Make all buttons feel tactile by default */
+  button { transition: background-color 0.18s ease, color 0.18s ease, border-color 0.18s ease, transform 0.15s ease, box-shadow 0.2s ease, filter 0.2s ease; }
+  button:active:not(:disabled) { transform: translateY(0.5px) scale(0.99); }
+}
+
+
+/* Hide Lovable badge */
+a[href*="lovable.dev"],
+iframe[src*="lovable.dev"],
+div[style*="Edit with Lovable"],
+.lovable-badge {
+  display: none !important;
+  opacity: 0 !important;
+  visibility: hidden !important;
+  pointer-events: none !important;
+  position: absolute !important;
+  z-index: -9999 !important;
+}
