@@ -451,6 +451,10 @@ const Index = () => {
   };
 
   const handleDownload = async () => {
+    if (!online) {
+      toast.error("Sem conexão. Volte para a internet para finalizar e enviar ao banco.");
+      return;
+    }
     if (!placa || !marca || !modelo) {
       toast.error("Preencha placa, marca e modelo do veículo.");
       return;
