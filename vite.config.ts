@@ -45,11 +45,31 @@ export default defineConfig(({ mode }) => ({
       },
       workbox: {
         navigateFallbackDenylist: [/^\/~oauth/],
+        // Allow large photo files to be precached/cached at runtime
+        maximumFileSizeToCacheInBytes: 8 * 1024 * 1024,
         runtimeCaching: [
           {
             urlPattern: ({ request }) => request.mode === "navigate",
             handler: "NetworkFirst",
             options: { cacheName: "html", networkTimeoutSeconds: 3 },
+          },
+          // Cache uploaded photos (Supabase Storage signed URLs) so they
+          // remain visible when offline.
+          {
+            urlPattern: /\/storage\/v1\/object\/.*/i,
+            handler: "CacheFirst",
+            options: {
+              cacheName: "evaluation-photos",
+              expiration: { maxEntries: 500, maxAgeSeconds: 60 * 60 * 24 * 90 },
+              cacheableResponse: { statuses: [0, 200] },
+            },
+          },
+          // Cache static assets (fonts, images shipped with the app)
+          {
+            urlPattern: ({ request }) =>
+              ["image", "font", "style", "script"].includes(request.destination),
+            handler: "StaleWhileRevalidate",
+            options: { cacheName: "static-assets" },
           },
         ],
       },

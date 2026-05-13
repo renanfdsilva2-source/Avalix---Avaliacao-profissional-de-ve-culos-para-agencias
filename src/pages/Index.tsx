@@ -200,17 +200,41 @@ const Index = () => {
     })();
   }, []);
 
-  // Online/offline status
+  // Online/offline status — auto-sync pending changes when connection returns
   useEffect(() => {
-    const goOnline = () => setOnline(true);
-    const goOffline = () => { setOnline(false); setSyncState("offline"); };
+    const goOnline = () => {
+      setOnline(true);
+      // Trigger immediate sync of any pending local changes
+      if (hydrated) {
+        toast.success("Conexão restaurada — sincronizando…");
+        autoSaveToCloud();
+      }
+    };
+    const goOffline = () => {
+      setOnline(false);
+      setSyncState("offline");
+      toast.message("Modo offline — alterações salvas no dispositivo");
+    };
     window.addEventListener("online", goOnline);
     window.addEventListener("offline", goOffline);
     return () => {
       window.removeEventListener("online", goOnline);
       window.removeEventListener("offline", goOffline);
     };
-  }, []);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [hydrated]);
+
+  // Warn before leaving if there are unsynced changes
+  useEffect(() => {
+    const handler = (e: BeforeUnloadEvent) => {
+      if (syncState === "saving" || syncState === "offline" || syncState === "error") {
+        e.preventDefault();
+        e.returnValue = "";
+      }
+    };
+    window.addEventListener("beforeunload", handler);
+    return () => window.removeEventListener("beforeunload", handler);
+  }, [syncState]);
 
   // Debounced local save (IndexedDB) — works offline
   useEffect(() => {
@@ -356,6 +380,16 @@ const Index = () => {
   };
 
   const handleSaveDraft = async () => {
+    // Sempre salva localmente primeiro (síncrono via auto-save IndexedDB).
+    if (!online) {
+      await saveLocalDraft({
+        evaluationId,
+        state: stateSnapshot as Record<string, unknown>,
+        updatedAt: Date.now(),
+      });
+      toast.success("Rascunho salvo no dispositivo. Será sincronizado quando voltar online.");
+      return;
+    }
     const id = await persist("draft");
     if (id) toast.success("Rascunho salvo!");
   };
@@ -417,6 +451,10 @@ const Index = () => {
   };
 
   const handleDownload = async () => {
+    if (!online) {
+      toast.error("Sem conexão. Volte para a internet para finalizar e enviar ao banco.");
+      return;
+    }
     if (!placa || !marca || !modelo) {
       toast.error("Preencha placa, marca e modelo do veículo.");
       return;
