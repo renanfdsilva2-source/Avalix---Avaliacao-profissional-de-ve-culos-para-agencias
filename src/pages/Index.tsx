@@ -15,6 +15,8 @@ import {
   FolderOpen,
   Plus,
   FileCheck,
+  ShieldCheck,
+  Banknote,
   LogOut,
   CloudOff,
   CloudUpload,
@@ -109,6 +111,11 @@ const Index = () => {
   const [gnv, setGnv] = useState<SimNao>(null);
   const [pinturaTotal, setPinturaTotal] = useState<SimNao>(null);
 
+  // Blindagem & Financiamento
+  const [blindado, setBlindado] = useState(false);
+  const [financiado, setFinanciado] = useState(false);
+  const [financiadoValor, setFinanciadoValor] = useState("");
+
   // Documentation
   const [documentation, setDocumentation] = useState<DocumentationData>(emptyDocumentation);
 
@@ -154,8 +161,13 @@ const Index = () => {
     if (repairsTotal > 0) items.push({ label: "Reparos detalhados", value: -repairsTotal });
     if (gnv === "sim") items.push({ label: "Possui GNV", value: -3000 });
     if (pinturaTotal === "sim") items.push({ label: "Necessita pintura total", value: -4500 });
+    if (blindado) items.push({ label: "Blindagem", value: -15000 });
+    if (financiado) {
+      const fv = parseMoney(financiadoValor);
+      if (fv > 0) items.push({ label: "Saldo financiado", value: -fv });
+    }
     return items;
-  }, [cambio, pintura, pneus, higienizacao, outros, documentation.debitos, manutencao, manutencaoValor, gnv, pinturaTotal, repairsTotal]);
+  }, [cambio, pintura, pneus, higienizacao, outros, documentation.debitos, manutencao, manutencaoValor, gnv, pinturaTotal, repairsTotal, blindado, financiado, financiadoValor]);
 
   const totalDescontos = breakdown.reduce((sum, i) => sum + i.value, 0);
   const valorFinal = Math.max(0, fipeValue + totalDescontos);
@@ -168,11 +180,12 @@ const Index = () => {
       manutencao, manutencaoValor,
       repairs, customRepairs,
       gnv, pinturaTotal,
+      blindado, financiado, financiadoValor,
       documentation,
       photos,
       signature, lgpd,
     }),
-    [placa, marca, modelo, ano, cor, fipe, km, cambio, pintura, pneus, higienizacao, outros, manutencao, manutencaoValor, repairs, customRepairs, gnv, pinturaTotal, documentation, photos, signature, lgpd]
+    [placa, marca, modelo, ano, cor, fipe, km, cambio, pintura, pneus, higienizacao, outros, manutencao, manutencaoValor, repairs, customRepairs, gnv, pinturaTotal, blindado, financiado, financiadoValor, documentation, photos, signature, lgpd]
   );
 
   // Hydrate from local IndexedDB on first mount
