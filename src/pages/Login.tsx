@@ -25,6 +25,18 @@ export default function Login() {
     navigate("/", { replace: true });
   };
 
+  const signInWithGoogle = async () => {
+    const result = await lovable.auth.signInWithOAuth("google", {
+      redirect_uri: window.location.origin,
+    });
+    if (result.error) {
+      toast.error(result.error.message || "Falha ao entrar com Google");
+      return;
+    }
+    if (result.redirected) return;
+    navigate("/", { replace: true });
+  };
+
   return (
     <AuthShell
       title="Acesso ao sistema"
