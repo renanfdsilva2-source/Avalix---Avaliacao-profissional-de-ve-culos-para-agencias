@@ -641,6 +641,32 @@ const Index = () => {
           </div>
         </Panel>
 
+        <Panel id="sec-blindagem" icon={<ShieldCheck className="h-5 w-5" />} title="Blindagem">
+          <div className="grid grid-cols-2 gap-3">
+            <ToggleChip active={!blindado} onClick={() => setBlindado(false)}>Não blindado</ToggleChip>
+            <ToggleChip active={blindado} onClick={() => setBlindado(true)}>Blindado (−R$ 15.000)</ToggleChip>
+          </div>
+        </Panel>
+
+        <Panel id="sec-financiamento" icon={<Banknote className="h-5 w-5" />} title="Financiamento">
+          <div className="grid grid-cols-2 gap-3">
+            <ToggleChip active={!financiado} onClick={() => { setFinanciado(false); setFinanciadoValor(""); }}>Quitado</ToggleChip>
+            <ToggleChip active={financiado} onClick={() => setFinanciado(true)}>Em financiamento</ToggleChip>
+          </div>
+          {financiado && (
+            <Field
+              label="Saldo devedor (R$)"
+              placeholder="0,00"
+              inputMode="decimal"
+              value={financiadoValor}
+              onChange={(e) => setFinanciadoValor(e.target.value)}
+            />
+          )}
+          <p className="text-[11px] text-muted-foreground leading-relaxed">
+            O saldo devedor informado será integralmente descontado do valor final do veículo.
+          </p>
+        </Panel>
+
         <Panel
           id="sec-fotos"
           icon={<Camera className="h-5 w-5" />}
