@@ -1,5 +1,4 @@
 import { Plus, Trash2 } from "lucide-react";
-import { Field } from "./Field";
 
 export interface RepairItem {
   label: string;
@@ -11,20 +10,54 @@ export interface CustomRepair {
   value: string;
 }
 
-export const DEFAULT_REPAIRS: Omit<RepairItem, "checked" | "value">[] = [
-  { label: "Freios" },
-  { label: "Suspensão" },
-  { label: "Embreagem" },
-  { label: "Ar-condicionado" },
-  { label: "Motor (revisão)" },
-  { label: "Câmbio" },
-  { label: "Bateria" },
-  { label: "Vidros elétricos" },
-  { label: "Faróis / Lanternas" },
-  { label: "Escapamento" },
-  { label: "Direção" },
-  { label: "Alinhamento / Balanceamento" },
+export interface RepairCategory {
+  category: string;
+  items: string[];
+}
+
+export const REPAIR_CATEGORIES: RepairCategory[] = [
+  {
+    category: "Mecânica",
+    items: [
+      "Freios",
+      "Suspensão",
+      "Embreagem",
+      "Motor (revisão)",
+      "Câmbio",
+      "Direção",
+      "Alinhamento / Balanceamento",
+      "Escapamento",
+    ],
+  },
+  {
+    category: "Elétrica",
+    items: [
+      "Bateria",
+      "Vidros elétricos",
+      "Faróis / Lanternas",
+      "Ar-condicionado",
+    ],
+  },
+  {
+    category: "Itens internos",
+    items: [
+      "Bancos (estofado)",
+      "Forração / carpete",
+      "Painel / console",
+      "Som / multimídia",
+      "Volante / câmbio (revestimento)",
+      "Forro do teto",
+      "Tapetes",
+      "Cintos de segurança",
+      "Maçanetas internas",
+      "Quebra-sol / espelho interno",
+    ],
+  },
 ];
+
+// Flat list of every default item, preserving category order.
+export const DEFAULT_REPAIRS: Omit<RepairItem, "checked" | "value">[] =
+  REPAIR_CATEGORIES.flatMap((c) => c.items.map((label) => ({ label })));
 
 interface RepairsPanelProps {
   items: RepairItem[];
@@ -34,16 +67,12 @@ interface RepairsPanelProps {
 }
 
 export const RepairsPanel = ({ items, onItemsChange, customs, onCustomsChange }: RepairsPanelProps) => {
-  const toggle = (i: number) => {
-    const next = [...items];
-    next[i] = { ...next[i], checked: !next[i].checked };
-    onItemsChange(next);
+  const updateByLabel = (label: string, patch: Partial<RepairItem>) => {
+    onItemsChange(items.map((it) => (it.label === label ? { ...it, ...patch } : it)));
   };
-  const setVal = (i: number, v: string) => {
-    const next = [...items];
-    next[i] = { ...next[i], value: v };
-    onItemsChange(next);
-  };
+  const findItem = (label: string) =>
+    items.find((it) => it.label === label) || { label, checked: false, value: "" };
+
   const addCustom = () => onCustomsChange([...customs, { label: "", value: "" }]);
   const updateCustom = (i: number, patch: Partial<CustomRepair>) => {
     const next = [...customs];
@@ -52,40 +81,96 @@ export const RepairsPanel = ({ items, onItemsChange, customs, onCustomsChange }:
   };
   const removeCustom = (i: number) => onCustomsChange(customs.filter((_, idx) => idx !== i));
 
-  return (
-    <div className="space-y-3">
-      <div className="space-y-2">
-        {items.map((item, i) => (
-          <div
-            key={item.label}
-            className={`rounded-xl border transition-smooth ${
-              item.checked ? "bg-primary/5 border-primary/40" : "bg-muted/30 border-border"
-            }`}
-          >
-            <label className="flex items-center gap-3 px-3 py-2.5 cursor-pointer">
-              <input
-                type="checkbox"
-                checked={item.checked}
-                onChange={() => toggle(i)}
-                className="h-4 w-4 accent-primary"
-              />
-              <span className="flex-1 text-sm font-medium">{item.label}</span>
-              {item.checked && (
-                <input
-                  inputMode="decimal"
-                  placeholder="R$ 0,00"
-                  value={item.value}
-                  onChange={(e) => setVal(i, e.target.value)}
-                  onClick={(e) => e.stopPropagation()}
-                  className="w-28 h-9 rounded-lg bg-background border border-border px-3 text-sm focus:outline-none focus:border-primary"
-                />
-              )}
-            </label>
-          </div>
-        ))}
-      </div>
+  // Items that exist in state but aren't part of any known category (e.g. legacy)
+  const knownLabels = new Set(DEFAULT_REPAIRS.map((d) => d.label));
+  const extras = items.filter((it) => !knownLabels.has(it.label));
 
-      <div className="space-y-2 pt-2 border-t border-border">
+  return (
+    <div className="space-y-5">
+      {REPAIR_CATEGORIES.map((cat) => (
+        <div key={cat.category} className="space-y-2">
+          <div className="flex items-center gap-2">
+            <span className="text-[11px] uppercase tracking-[0.18em] font-bold text-primary-glow">
+              {cat.category}
+            </span>
+            <div className="flex-1 h-px bg-border/60" />
+          </div>
+          <div className="space-y-2">
+            {cat.items.map((label) => {
+              const item = findItem(label);
+              return (
+                <div
+                  key={label}
+                  className={`rounded-xl border transition-smooth ${
+                    item.checked ? "bg-primary/5 border-primary/40" : "bg-muted/30 border-border"
+                  }`}
+                >
+                  <label className="flex items-center gap-3 px-3 py-2.5 cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={item.checked}
+                      onChange={() => updateByLabel(label, { checked: !item.checked })}
+                      className="h-4 w-4 accent-primary"
+                    />
+                    <span className="flex-1 text-sm font-medium">{label}</span>
+                    {item.checked && (
+                      <input
+                        inputMode="decimal"
+                        placeholder="R$ 0,00"
+                        value={item.value}
+                        onChange={(e) => updateByLabel(label, { value: e.target.value })}
+                        onClick={(e) => e.stopPropagation()}
+                        className="w-28 h-9 rounded-lg bg-background border border-border px-3 text-sm focus:outline-none focus:border-primary"
+                      />
+                    )}
+                  </label>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      ))}
+
+      {extras.length > 0 && (
+        <div className="space-y-2">
+          <div className="flex items-center gap-2">
+            <span className="text-[11px] uppercase tracking-[0.18em] font-bold text-muted-foreground">
+              Outros
+            </span>
+            <div className="flex-1 h-px bg-border/60" />
+          </div>
+          {extras.map((item) => (
+            <div
+              key={item.label}
+              className={`rounded-xl border transition-smooth ${
+                item.checked ? "bg-primary/5 border-primary/40" : "bg-muted/30 border-border"
+              }`}
+            >
+              <label className="flex items-center gap-3 px-3 py-2.5 cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={item.checked}
+                  onChange={() => updateByLabel(item.label, { checked: !item.checked })}
+                  className="h-4 w-4 accent-primary"
+                />
+                <span className="flex-1 text-sm font-medium">{item.label}</span>
+                {item.checked && (
+                  <input
+                    inputMode="decimal"
+                    placeholder="R$ 0,00"
+                    value={item.value}
+                    onChange={(e) => updateByLabel(item.label, { value: e.target.value })}
+                    onClick={(e) => e.stopPropagation()}
+                    className="w-28 h-9 rounded-lg bg-background border border-border px-3 text-sm focus:outline-none focus:border-primary"
+                  />
+                )}
+              </label>
+            </div>
+          ))}
+        </div>
+      )}
+
+      <div className="space-y-2 pt-3 border-t border-border">
         <div className="flex items-center justify-between">
           <span className="field-label">Reparos personalizados</span>
           <button

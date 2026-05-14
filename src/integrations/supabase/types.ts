@@ -64,11 +64,14 @@ export type Database = {
       evaluations: {
         Row: {
           ano: string | null
+          blindado: boolean
           cambio: string | null
           cor: string | null
           created_at: string
           custom_repairs: Json
           documentation: Json
+          financiado: boolean
+          financiado_valor: number
           fipe: number | null
           fipe_value: number
           gnv: string | null
@@ -96,11 +99,14 @@ export type Database = {
         }
         Insert: {
           ano?: string | null
+          blindado?: boolean
           cambio?: string | null
           cor?: string | null
           created_at?: string
           custom_repairs?: Json
           documentation?: Json
+          financiado?: boolean
+          financiado_valor?: number
           fipe?: number | null
           fipe_value?: number
           gnv?: string | null
@@ -128,11 +134,14 @@ export type Database = {
         }
         Update: {
           ano?: string | null
+          blindado?: boolean
           cambio?: string | null
           cor?: string | null
           created_at?: string
           custom_repairs?: Json
           documentation?: Json
+          financiado?: boolean
+          financiado_valor?: number
           fipe?: number | null
           fipe_value?: number
           gnv?: string | null

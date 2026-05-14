@@ -15,6 +15,8 @@ import {
   FolderOpen,
   Plus,
   FileCheck,
+  ShieldCheck,
+  Banknote,
   LogOut,
   CloudOff,
   CloudUpload,
@@ -109,6 +111,11 @@ const Index = () => {
   const [gnv, setGnv] = useState<SimNao>(null);
   const [pinturaTotal, setPinturaTotal] = useState<SimNao>(null);
 
+  // Blindagem & Financiamento
+  const [blindado, setBlindado] = useState(false);
+  const [financiado, setFinanciado] = useState(false);
+  const [financiadoValor, setFinanciadoValor] = useState("");
+
   // Documentation
   const [documentation, setDocumentation] = useState<DocumentationData>(emptyDocumentation);
 
@@ -154,8 +161,13 @@ const Index = () => {
     if (repairsTotal > 0) items.push({ label: "Reparos detalhados", value: -repairsTotal });
     if (gnv === "sim") items.push({ label: "Possui GNV", value: -3000 });
     if (pinturaTotal === "sim") items.push({ label: "Necessita pintura total", value: -4500 });
+    if (blindado) items.push({ label: "Blindagem", value: -15000 });
+    if (financiado) {
+      const fv = parseMoney(financiadoValor);
+      if (fv > 0) items.push({ label: "Saldo financiado", value: -fv });
+    }
     return items;
-  }, [cambio, pintura, pneus, higienizacao, outros, documentation.debitos, manutencao, manutencaoValor, gnv, pinturaTotal, repairsTotal]);
+  }, [cambio, pintura, pneus, higienizacao, outros, documentation.debitos, manutencao, manutencaoValor, gnv, pinturaTotal, repairsTotal, blindado, financiado, financiadoValor]);
 
   const totalDescontos = breakdown.reduce((sum, i) => sum + i.value, 0);
   const valorFinal = Math.max(0, fipeValue + totalDescontos);
@@ -168,11 +180,12 @@ const Index = () => {
       manutencao, manutencaoValor,
       repairs, customRepairs,
       gnv, pinturaTotal,
+      blindado, financiado, financiadoValor,
       documentation,
       photos,
       signature, lgpd,
     }),
-    [placa, marca, modelo, ano, cor, fipe, km, cambio, pintura, pneus, higienizacao, outros, manutencao, manutencaoValor, repairs, customRepairs, gnv, pinturaTotal, documentation, photos, signature, lgpd]
+    [placa, marca, modelo, ano, cor, fipe, km, cambio, pintura, pneus, higienizacao, outros, manutencao, manutencaoValor, repairs, customRepairs, gnv, pinturaTotal, blindado, financiado, financiadoValor, documentation, photos, signature, lgpd]
   );
 
   // Hydrate from local IndexedDB on first mount
@@ -191,6 +204,9 @@ const Index = () => {
         if (Array.isArray(s.repairs) && s.repairs.length) setRepairs(s.repairs);
         if (Array.isArray(s.customRepairs)) setCustomRepairs(s.customRepairs);
         setGnv(s.gnv ?? null); setPinturaTotal(s.pinturaTotal ?? null);
+        setBlindado(!!s.blindado);
+        setFinanciado(!!s.financiado);
+        setFinanciadoValor(s.financiadoValor ?? "");
         if (s.documentation) setDocumentation(s.documentation);
         if (Array.isArray(s.photos) && s.photos.length) setPhotos(s.photos);
         setSignature(s.signature ?? null);
@@ -333,6 +349,9 @@ const Index = () => {
     manutencao_valor: parseMoney(manutencaoValor),
     gnv,
     pintura_total: pinturaTotal,
+    blindado,
+    financiado,
+    financiado_valor: parseMoney(financiadoValor),
     repairs: repairs as any,
     custom_repairs: customRepairs as any,
     documentation: documentation as any,
@@ -402,6 +421,7 @@ const Index = () => {
     setManutencao(null); setManutencaoValor("");
     setRepairs(initialRepairs()); setCustomRepairs([]);
     setGnv(null); setPinturaTotal(null);
+    setBlindado(false); setFinanciado(false); setFinanciadoValor("");
     setDocumentation(emptyDocumentation);
     setPhotos(DEFAULT_PHOTO_SLOTS.map((s) => ({ ...s, src: null })));
     setSignature(null); setLgpd(false);
@@ -440,6 +460,9 @@ const Index = () => {
     setDocumentation(((data.documentation as unknown) as DocumentationData) || emptyDocumentation);
     setGnv((data.gnv as SimNao) ?? null);
     setPinturaTotal((data.pintura_total as SimNao) ?? null);
+    setBlindado(!!(data as any).blindado);
+    setFinanciado(!!(data as any).financiado);
+    setFinanciadoValor((data as any).financiado_valor ? String((data as any).financiado_valor).replace(".", ",") : "");
     const loadedPhotos = ((data.photos as unknown) as { key: string; label: string; url: string | null }[]) || [];
     if (loadedPhotos.length > 0) {
       setPhotos(loadedPhotos.map((p) => ({ key: p.key, label: p.label, src: p.url })));
@@ -616,6 +639,32 @@ const Index = () => {
             <ToggleChip active={pinturaTotal === "nao"} onClick={() => setPinturaTotal(pinturaTotal === "nao" ? null : "nao")}>Não Necessita</ToggleChip>
             <ToggleChip active={pinturaTotal === "sim"} onClick={() => setPinturaTotal(pinturaTotal === "sim" ? null : "sim")}>Necessita (−R$ 4.500)</ToggleChip>
           </div>
+        </Panel>
+
+        <Panel id="sec-blindagem" icon={<ShieldCheck className="h-5 w-5" />} title="Blindagem">
+          <div className="grid grid-cols-2 gap-3">
+            <ToggleChip active={!blindado} onClick={() => setBlindado(false)}>Não blindado</ToggleChip>
+            <ToggleChip active={blindado} onClick={() => setBlindado(true)}>Blindado (−R$ 15.000)</ToggleChip>
+          </div>
+        </Panel>
+
+        <Panel id="sec-financiamento" icon={<Banknote className="h-5 w-5" />} title="Financiamento">
+          <div className="grid grid-cols-2 gap-3">
+            <ToggleChip active={!financiado} onClick={() => { setFinanciado(false); setFinanciadoValor(""); }}>Quitado</ToggleChip>
+            <ToggleChip active={financiado} onClick={() => setFinanciado(true)}>Em financiamento</ToggleChip>
+          </div>
+          {financiado && (
+            <Field
+              label="Saldo devedor (R$)"
+              placeholder="0,00"
+              inputMode="decimal"
+              value={financiadoValor}
+              onChange={(e) => setFinanciadoValor(e.target.value)}
+            />
+          )}
+          <p className="text-[11px] text-muted-foreground leading-relaxed">
+            O saldo devedor informado será integralmente descontado do valor final do veículo.
+          </p>
         </Panel>
 
         <Panel
