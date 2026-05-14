@@ -421,6 +421,7 @@ const Index = () => {
     setManutencao(null); setManutencaoValor("");
     setRepairs(initialRepairs()); setCustomRepairs([]);
     setGnv(null); setPinturaTotal(null);
+    setBlindado(false); setFinanciado(false); setFinanciadoValor("");
     setDocumentation(emptyDocumentation);
     setPhotos(DEFAULT_PHOTO_SLOTS.map((s) => ({ ...s, src: null })));
     setSignature(null); setLgpd(false);
@@ -459,6 +460,9 @@ const Index = () => {
     setDocumentation(((data.documentation as unknown) as DocumentationData) || emptyDocumentation);
     setGnv((data.gnv as SimNao) ?? null);
     setPinturaTotal((data.pintura_total as SimNao) ?? null);
+    setBlindado(!!(data as any).blindado);
+    setFinanciado(!!(data as any).financiado);
+    setFinanciadoValor((data as any).financiado_valor ? String((data as any).financiado_valor).replace(".", ",") : "");
     const loadedPhotos = ((data.photos as unknown) as { key: string; label: string; url: string | null }[]) || [];
     if (loadedPhotos.length > 0) {
       setPhotos(loadedPhotos.map((p) => ({ key: p.key, label: p.label, src: p.url })));
