@@ -204,6 +204,9 @@ const Index = () => {
         if (Array.isArray(s.repairs) && s.repairs.length) setRepairs(s.repairs);
         if (Array.isArray(s.customRepairs)) setCustomRepairs(s.customRepairs);
         setGnv(s.gnv ?? null); setPinturaTotal(s.pinturaTotal ?? null);
+        setBlindado(!!s.blindado);
+        setFinanciado(!!s.financiado);
+        setFinanciadoValor(s.financiadoValor ?? "");
         if (s.documentation) setDocumentation(s.documentation);
         if (Array.isArray(s.photos) && s.photos.length) setPhotos(s.photos);
         setSignature(s.signature ?? null);
