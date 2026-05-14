@@ -2,7 +2,6 @@ import { useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
-import { lovable } from "@/integrations/lovable";
 import { AvalixLogo } from "@/components/AvalixLogo";
 import { Lock, ShieldCheck, Mail, KeyRound } from "lucide-react";
 import { AuthShell } from "@/components/auth/AuthShell";
@@ -22,18 +21,6 @@ export default function Login() {
       toast.error(error.message === "Invalid login credentials" ? "Email ou senha inválidos" : error.message);
       return;
     }
-    navigate("/", { replace: true });
-  };
-
-  const signInWithGoogle = async () => {
-    const result = await lovable.auth.signInWithOAuth("google", {
-      redirect_uri: window.location.origin,
-    });
-    if (result.error) {
-      toast.error(result.error.message || "Falha ao entrar com Google");
-      return;
-    }
-    if (result.redirected) return;
     navigate("/", { replace: true });
   };
 
@@ -94,27 +81,6 @@ export default function Login() {
         >
           Criar conta
         </Link>
-
-        <div className="relative my-1">
-          <div className="absolute inset-0 flex items-center">
-            <span className="w-full border-t border-border" />
-          </div>
-          <div className="relative flex justify-center text-[10px] uppercase tracking-widest">
-            <span className="bg-card px-2 text-muted-foreground">ou</span>
-          </div>
-        </div>
-
-        <button
-          type="button"
-          onClick={signInWithGoogle}
-          className="w-full h-11 rounded-lg border border-border hover:border-primary/50 hover:bg-secondary/50 transition-smooth text-sm font-semibold flex items-center justify-center gap-2"
-        >
-          <svg className="h-4 w-4" viewBox="0 0 24 24" aria-hidden="true">
-            <path fill="#EA4335" d="M12 10.2v3.9h5.5c-.24 1.4-1.7 4.1-5.5 4.1-3.3 0-6-2.7-6-6.1s2.7-6.1 6-6.1c1.9 0 3.2.8 3.9 1.5l2.7-2.6C16.9 3.3 14.7 2.4 12 2.4 6.7 2.4 2.4 6.7 2.4 12s4.3 9.6 9.6 9.6c5.5 0 9.2-3.9 9.2-9.4 0-.6-.1-1.1-.2-1.6H12z"/>
-          </svg>
-          Continuar com Google
-        </button>
-
         <div className="corporate-divider" />
 
         <div className="grid grid-cols-2 gap-3 text-[11px] text-muted-foreground">
