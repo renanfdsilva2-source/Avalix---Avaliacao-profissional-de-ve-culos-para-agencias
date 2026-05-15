@@ -4,6 +4,7 @@ import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { AuthShell } from "@/components/auth/AuthShell";
 import { PROD_URL } from "@/lib/authConfig";
+import { authErrorMessage, withAuthTimeout } from "@/lib/authTimeout";
 
 export default function Register() {
   const navigate = useNavigate();
@@ -24,25 +25,32 @@ export default function Register() {
       return;
     }
     setLoading(true);
-    const { data, error } = await supabase.auth.signUp({
-      email: email.trim(),
-      password,
-      options: {
-        emailRedirectTo: `${PROD_URL}/`,
-        data: { full_name: fullName.trim() },
-      },
-    });
-    setLoading(false);
-    if (error) {
-      toast.error(error.message);
-      return;
-    }
-    if (data.session) {
-      toast.success("Conta criada com sucesso");
-      navigate("/", { replace: true });
-    } else {
-      toast.success("Verifique seu email para confirmar a conta");
-      navigate("/login", { replace: true });
+    try {
+      const { data, error } = await withAuthTimeout(
+        supabase.auth.signUp({
+          email: email.trim(),
+          password,
+          options: {
+            emailRedirectTo: `${PROD_URL}/`,
+            data: { full_name: fullName.trim() },
+          },
+        }),
+      );
+      if (error) {
+        toast.error(error.message);
+        return;
+      }
+      if (data.session) {
+        toast.success("Conta criada com sucesso");
+        navigate("/", { replace: true });
+      } else {
+        toast.success("Conta criada. Faça login para continuar.");
+        navigate("/login", { replace: true });
+      }
+    } catch (error) {
+      toast.error(authErrorMessage(error));
+    } finally {
+      setLoading(false);
     }
   };
 

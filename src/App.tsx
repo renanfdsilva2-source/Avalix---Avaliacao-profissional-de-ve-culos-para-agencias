@@ -17,6 +17,7 @@ import ResetPassword from "./pages/ResetPassword.tsx";
 import NotFound from "./pages/NotFound.tsx";
 import { AlarmModal } from "@/components/AlarmModal";
 import { useAppointmentAlarm } from "@/hooks/useAppointmentAlarm";
+import { withAuthTimeout } from "@/lib/authTimeout";
 
 const queryClient = new QueryClient();
 
@@ -31,10 +32,14 @@ const useSession = () => {
       if (event === "PASSWORD_RECOVERY") setRecovery(true);
       setLoading(false);
     });
-    supabase.auth.getSession().then(({ data }) => {
-      setSession(data.session);
-      setLoading(false);
-    });
+    withAuthTimeout(supabase.auth.getSession())
+      .then(({ data }) => {
+        setSession(data.session);
+      })
+      .catch(() => {
+        setSession(null);
+      })
+      .finally(() => setLoading(false));
     return () => sub.subscription.unsubscribe();
   }, []);
   return { session, loading, recovery };

@@ -4,6 +4,7 @@ import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { AuthShell } from "@/components/auth/AuthShell";
 import { PROD_URL } from "@/lib/authConfig";
+import { authErrorMessage, withAuthTimeout } from "@/lib/authTimeout";
 
 export default function ForgotPassword() {
   const [email, setEmail] = useState("");
@@ -13,16 +14,23 @@ export default function ForgotPassword() {
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
-    const { error } = await supabase.auth.resetPasswordForEmail(email.trim(), {
-      redirectTo: `${PROD_URL}/reset-password`,
-    });
-    setLoading(false);
-    if (error) {
-      toast.error(error.message);
-      return;
+    try {
+      const { error } = await withAuthTimeout(
+        supabase.auth.resetPasswordForEmail(email.trim(), {
+          redirectTo: `${PROD_URL}/reset-password`,
+        }),
+      );
+      if (error) {
+        toast.error(error.message);
+        return;
+      }
+      setSent(true);
+      toast.success("Email de recuperação enviado");
+    } catch (error) {
+      toast.error(authErrorMessage(error));
+    } finally {
+      setLoading(false);
     }
-    setSent(true);
-    toast.success("Email de recuperação enviado");
   };
 
   return (
