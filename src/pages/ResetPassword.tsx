@@ -3,6 +3,7 @@ import { useNavigate } from "react-router-dom";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { AuthShell } from "@/components/auth/AuthShell";
+import { authErrorMessage, withAuthTimeout } from "@/lib/authTimeout";
 
 export default function ResetPassword() {
   const navigate = useNavigate();
@@ -27,14 +28,19 @@ export default function ResetPassword() {
     if (password.length < 8) return toast.error("A senha deve ter pelo menos 8 caracteres");
     if (password !== confirm) return toast.error("As senhas não coincidem");
     setLoading(true);
-    const { error } = await supabase.auth.updateUser({ password });
-    setLoading(false);
-    if (error) {
-      toast.error(error.message);
-      return;
+    try {
+      const { error } = await withAuthTimeout(supabase.auth.updateUser({ password }));
+      if (error) {
+        toast.error(error.message);
+        return;
+      }
+      toast.success("Senha atualizada");
+      navigate("/", { replace: true });
+    } catch (error) {
+      toast.error(authErrorMessage(error));
+    } finally {
+      setLoading(false);
     }
-    toast.success("Senha atualizada");
-    navigate("/", { replace: true });
   };
 
   return (
