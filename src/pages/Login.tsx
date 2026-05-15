@@ -2,9 +2,9 @@ import { useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
-import { AvalixLogo } from "@/components/AvalixLogo";
 import { Lock, ShieldCheck, Mail, KeyRound } from "lucide-react";
 import { AuthShell } from "@/components/auth/AuthShell";
+import { authErrorMessage, withAuthTimeout } from "@/lib/authTimeout";
 
 export default function Login() {
   const navigate = useNavigate();
@@ -15,13 +15,20 @@ export default function Login() {
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
-    const { error } = await supabase.auth.signInWithPassword({ email: email.trim(), password });
-    setLoading(false);
-    if (error) {
-      toast.error(error.message === "Invalid login credentials" ? "Email ou senha inválidos" : error.message);
-      return;
+    try {
+      const { error } = await withAuthTimeout(
+        supabase.auth.signInWithPassword({ email: email.trim(), password }),
+      );
+      if (error) {
+        toast.error(error.message === "Invalid login credentials" ? "Email ou senha inválidos" : error.message);
+        return;
+      }
+      navigate("/", { replace: true });
+    } catch (error) {
+      toast.error(authErrorMessage(error));
+    } finally {
+      setLoading(false);
     }
-    navigate("/", { replace: true });
   };
 
   return (
