@@ -578,8 +578,11 @@ const Index = () => {
     setSyncState("idle");
   };
 
-  const loadEvaluation = async (id: string) => {
-    const { data, error } = await supabase.from("evaluations").select("*").eq("id", id).single();
+  const loadEvaluation = async (id: string, options?: { silent?: boolean }) => {
+    const { data, error } = await retryWithBackoff(
+      () => Promise.resolve(supabase.from("evaluations").select("*").eq("id", id).maybeSingle()),
+      { label: "carregamento da avaliação", retries: 2, timeoutMs: 12000 },
+    );
     if (error || !data) {
       toast.error("Erro ao carregar avaliação");
       return;
@@ -619,7 +622,9 @@ const Index = () => {
     setSignature(data.signature ?? null);
     setLgpd(false);
     setShowDrafts(false);
-    toast.success("Avaliação carregada");
+    setSyncState("saved");
+    setLastSavedAt(new Date(data.updated_at));
+    if (!options?.silent) toast.success("Avaliação carregada");
   };
 
   const handleDownload = async () => {
