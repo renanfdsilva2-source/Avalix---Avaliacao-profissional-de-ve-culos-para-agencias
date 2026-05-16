@@ -206,9 +206,10 @@ const Index = () => {
       documentation,
       photos,
       signature, lgpd,
+      status: evaluationStatus,
       clientUpdatedAt: new Date().toISOString(),
     }),
-    [placa, marca, modelo, ano, cor, fipe, km, cambio, pintura, pneus, higienizacao, outros, manutencao, manutencaoValor, repairs, customRepairs, gnv, pinturaTotal, blindado, financiado, financiadoValor, documentation, photos, signature, lgpd]
+    [placa, marca, modelo, ano, cor, fipe, km, cambio, pintura, pneus, higienizacao, outros, manutencao, manutencaoValor, repairs, customRepairs, gnv, pinturaTotal, blindado, financiado, financiadoValor, documentation, photos, signature, lgpd, evaluationStatus]
   );
 
   useEffect(() => {
@@ -229,6 +230,7 @@ const Index = () => {
         const s = draft.state as Record<string, any>;
         const restoredId = draft.evaluationId ?? createEvaluationId();
         setEvaluationId(restoredId);
+        setEvaluationStatus(s.status === "completed" || s.status === "final" ? "completed" : "draft");
         setPlaca(s.placa ?? ""); setMarca(s.marca ?? ""); setModelo(s.modelo ?? "");
         setAno(s.ano ?? ""); setCor(s.cor ?? ""); setFipe(s.fipe ?? "");
         setKm(s.km ?? ""); setCambio(s.cambio ?? null);
