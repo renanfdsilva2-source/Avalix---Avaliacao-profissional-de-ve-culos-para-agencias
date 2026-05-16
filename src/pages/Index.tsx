@@ -93,6 +93,7 @@ const initialRepairs = (): RepairItem[] =>
 const Index = () => {
   // Loaded eval id (null = new)
   const [evaluationId, setEvaluationId] = useState<string | null>(null);
+  const [evaluationStatus, setEvaluationStatus] = useState<EvaluationStatus>("draft");
   const [showDrafts, setShowDrafts] = useState(false);
   const [saving, setSaving] = useState(false);
   const [exporting, setExporting] = useState(false);
@@ -249,6 +250,7 @@ const Index = () => {
         const newId = createEvaluationId();
         console.info("[Avalix Sync] novo rascunho local criado", { evaluationId: newId });
         setEvaluationId(newId);
+        if (typeof navigator !== "undefined" && !navigator.onLine) setRecoveryChecked(true);
       }
       setHydrated(true);
     })();
