@@ -401,9 +401,10 @@ const Index = () => {
       if (!userData.user) throw new Error("Sessão expirada. Faça login novamente para sincronizar.");
       setSyncState("saving");
       const id = ensureEvaluationId();
-      console.info("[Avalix Sync] autosave iniciado", { evaluationId: id });
+      const statusForSave = evaluationStatus;
+      console.info("[Avalix Sync] autosave iniciado", { evaluationId: id, status: statusForSave });
 
-      const initialRow = { id, user_id: userData.user.id, status: "draft", client_updated_at: new Date().toISOString() };
+      const initialRow = { id, user_id: userData.user.id, status: statusForSave, client_updated_at: new Date().toISOString() };
       const { error: initError } = await retryWithBackoff(
         () => Promise.resolve(supabase.from("evaluations").upsert(initialRow).select("id").single()),
         { label: "criação do rascunho", retries: 3, timeoutMs: 15000 },
@@ -417,7 +418,7 @@ const Index = () => {
           return u && u.url ? { ...p, src: u.url } : p;
         })
       );
-      const row = { id, user_id: userData.user.id, ...buildDbRow("draft", uploaded) };
+      const row = { id, user_id: userData.user.id, ...buildDbRow(statusForSave, uploaded) };
       const { error } = await retryWithBackoff(
         () => Promise.resolve(supabase.from("evaluations").upsert(row).select("id,updated_at").single()),
         { label: "autosave da avaliação", retries: 3, timeoutMs: 20000 },
@@ -426,7 +427,7 @@ const Index = () => {
       setSyncState("saved");
       setLastSavedAt(new Date());
       await saveLocalDraft({ evaluationId: id, state: latestStateRef.current ?? stateSnapshot as Record<string, unknown>, updatedAt: Date.now(), pendingUpload: false });
-      console.info("[Avalix Sync] autosave concluído", { evaluationId: id });
+      console.info("[Avalix Sync] autosave concluído", { evaluationId: id, status: statusForSave });
     } catch (e) {
       await persistOffline("draft", e);
     } finally {
@@ -546,6 +547,7 @@ const Index = () => {
         { label: status === "completed" ? "finalização da avaliação" : "salvamento do rascunho", retries: 3, timeoutMs: 20000 },
       );
       if (error) throw error;
+      setEvaluationStatus(status);
       setSyncState("saved");
       setLastSavedAt(new Date());
       await saveLocalDraft({ evaluationId: id, state: snapshotWithUploadedPhotos(uploaded), updatedAt: Date.now(), pendingUpload: false });
@@ -578,6 +580,7 @@ const Index = () => {
 
   const resetForm = () => {
     setEvaluationId(null);
+    setEvaluationStatus("draft");
     setPlaca(""); setMarca(""); setModelo(""); setAno(""); setCor("");
     setFipe(""); setKm(""); setCambio(null);
     setPintura(0); setPneus(0); setHigienizacao(false); setOutros("");
@@ -602,6 +605,7 @@ const Index = () => {
       return;
     }
     setEvaluationId(id);
+    setEvaluationStatus(data.status === "completed" || data.status === "final" ? "completed" : "draft");
     setPlaca(data.placa ?? "");
     setMarca(data.marca ?? "");
     setModelo(data.modelo ?? "");
@@ -654,16 +658,24 @@ const Index = () => {
       toast.error("É necessário aceitar os termos LGPD.");
       return;
     }
+    if (fipeValue <= 0) {
+      toast.error("Informe o valor FIPE antes de finalizar.");
+      return;
+    }
+    setExporting(true);
     try {
       // Save as final + upload photos first
       const saved = await persist("completed");
       if (!saved) return;
       // Build PDF using uploaded URLs (state may not be updated synchronously)
       await generateEvaluationPdf(collectForPdf(saved.uploaded));
+      console.info("[Avalix PDF] PDF gerado", { evaluationId: saved.id, photos: saved.uploaded.filter((p) => p.url).length });
       toast.success("Avaliação finalizada e PDF gerado!");
     } catch (e) {
-      console.error(e);
-      toast.error("Erro ao gerar PDF.");
+      console.error("[Avalix PDF] erro real ao gerar PDF", e);
+      toast.error(`Erro ao gerar PDF: ${getErrorMessage(e)}`);
+    } finally {
+      setExporting(false);
     }
   };
 
