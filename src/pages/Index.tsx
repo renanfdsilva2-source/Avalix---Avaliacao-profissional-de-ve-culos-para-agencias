@@ -97,6 +97,7 @@ const Index = () => {
   const [saving, setSaving] = useState(false);
   const [exporting, setExporting] = useState(false);
   const [lastSavedAt, setLastSavedAt] = useState<Date | null>(null);
+  const [loadedLocalDraft, setLoadedLocalDraft] = useState(false);
   const latestStateRef = useRef<Record<string, unknown> | null>(null);
   const latestEvaluationIdRef = useRef<string | null>(null);
   const syncingRef = useRef(false);
@@ -222,6 +223,7 @@ const Index = () => {
       const draft = await loadLocalDraft();
       if (draft?.state) {
         console.info("[Avalix Sync] rascunho local recuperado", { evaluationId: draft.evaluationId, updatedAt: draft.updatedAt });
+        setLoadedLocalDraft(true);
         const s = draft.state as Record<string, any>;
         const restoredId = draft.evaluationId ?? createEvaluationId();
         setEvaluationId(restoredId);
@@ -249,6 +251,39 @@ const Index = () => {
       setHydrated(true);
     })();
   }, []);
+
+  useEffect(() => {
+    if (!hydrated || loadedLocalDraft || !online) return;
+    (async () => {
+      try {
+        const { data: userData } = await retryWithBackoff(
+          () => supabase.auth.getUser(),
+          { label: "verificação da sessão para recuperar rascunho", retries: 2, timeoutMs: 10000 },
+        );
+        if (!userData.user) return;
+        const { data, error } = await retryWithBackoff(
+          () => Promise.resolve(
+            supabase
+              .from("evaluations")
+              .select("*")
+              .eq("status", "draft")
+              .order("updated_at", { ascending: false })
+              .limit(1)
+              .maybeSingle(),
+          ),
+          { label: "recuperação automática de rascunho", retries: 2, timeoutMs: 12000 },
+        );
+        if (error) throw error;
+        if (data) {
+          console.info("[Avalix Sync] rascunho remoto recuperado", { evaluationId: data.id });
+          await loadEvaluation(data.id, { silent: true });
+        }
+      } catch (error) {
+        console.warn("[Avalix Sync] recuperação automática de rascunho falhou", getErrorMessage(error), error);
+      }
+    })();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [hydrated, loadedLocalDraft, online]);
 
   // Online/offline status — auto-sync pending changes when connection returns
   useEffect(() => {
