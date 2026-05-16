@@ -221,8 +221,10 @@ const Index = () => {
     (async () => {
       const draft = await loadLocalDraft();
       if (draft?.state) {
+        console.info("[Avalix Sync] rascunho local recuperado", { evaluationId: draft.evaluationId, updatedAt: draft.updatedAt });
         const s = draft.state as Record<string, any>;
-        setEvaluationId(draft.evaluationId);
+        const restoredId = draft.evaluationId ?? createEvaluationId();
+        setEvaluationId(restoredId);
         setPlaca(s.placa ?? ""); setMarca(s.marca ?? ""); setModelo(s.modelo ?? "");
         setAno(s.ano ?? ""); setCor(s.cor ?? ""); setFipe(s.fipe ?? "");
         setKm(s.km ?? ""); setCambio(s.cambio ?? null);
@@ -239,6 +241,10 @@ const Index = () => {
         if (Array.isArray(s.photos) && s.photos.length) setPhotos(s.photos);
         setSignature(s.signature ?? null);
         setLgpd(!!s.lgpd);
+      } else {
+        const newId = createEvaluationId();
+        console.info("[Avalix Sync] novo rascunho local criado", { evaluationId: newId });
+        setEvaluationId(newId);
       }
       setHydrated(true);
     })();
