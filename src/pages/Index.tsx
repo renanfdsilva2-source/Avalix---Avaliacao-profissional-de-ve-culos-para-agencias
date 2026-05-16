@@ -98,6 +98,7 @@ const Index = () => {
   const [exporting, setExporting] = useState(false);
   const [lastSavedAt, setLastSavedAt] = useState<Date | null>(null);
   const [loadedLocalDraft, setLoadedLocalDraft] = useState(false);
+  const [recoveryChecked, setRecoveryChecked] = useState(false);
   const latestStateRef = useRef<Record<string, unknown> | null>(null);
   const latestEvaluationIdRef = useRef<string | null>(null);
   const syncingRef = useRef(false);
@@ -243,6 +244,7 @@ const Index = () => {
         if (Array.isArray(s.photos) && s.photos.length) setPhotos(s.photos);
         setSignature(s.signature ?? null);
         setLgpd(!!s.lgpd);
+        setRecoveryChecked(true);
       } else {
         const newId = createEvaluationId();
         console.info("[Avalix Sync] novo rascunho local criado", { evaluationId: newId });
@@ -280,6 +282,8 @@ const Index = () => {
         }
       } catch (error) {
         console.warn("[Avalix Sync] recuperação automática de rascunho falhou", getErrorMessage(error), error);
+      } finally {
+        setRecoveryChecked(true);
       }
     })();
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -331,7 +335,7 @@ const Index = () => {
 
   // Debounced local save (IndexedDB) — works offline
   useEffect(() => {
-    if (!hydrated) return;
+    if (!hydrated || !recoveryChecked) return;
     if (localSaveTimer.current) clearTimeout(localSaveTimer.current);
     localSaveTimer.current = setTimeout(() => {
       const id = evaluationId ?? createEvaluationId();
@@ -346,17 +350,17 @@ const Index = () => {
       setSyncState(online ? "pending" : "offline");
       console.info("[Avalix Sync] salvamento local concluído", { evaluationId: id });
     }, 500);
-  }, [hydrated, stateSnapshot, evaluationId]);
+  }, [hydrated, recoveryChecked, stateSnapshot, evaluationId]);
 
   // Debounced cloud auto-save
   useEffect(() => {
-    if (!hydrated) return;
+    if (!hydrated || !recoveryChecked) return;
     if (!online) { setSyncState("offline"); return; }
     if (cloudSaveTimer.current) clearTimeout(cloudSaveTimer.current);
     cloudSaveTimer.current = setTimeout(() => { autoSaveToCloud(); }, 1000);
     return () => { if (cloudSaveTimer.current) clearTimeout(cloudSaveTimer.current); };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [hydrated, online, stateSnapshot]);
+  }, [hydrated, recoveryChecked, online, stateSnapshot]);
 
   const persistOffline = async (status: EvaluationStatus, error?: unknown) => {
     const id = evaluationId ?? latestEvaluationIdRef.current ?? createEvaluationId();
