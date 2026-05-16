@@ -202,9 +202,18 @@ const Index = () => {
       documentation,
       photos,
       signature, lgpd,
+      clientUpdatedAt: new Date().toISOString(),
     }),
     [placa, marca, modelo, ano, cor, fipe, km, cambio, pintura, pneus, higienizacao, outros, manutencao, manutencaoValor, repairs, customRepairs, gnv, pinturaTotal, blindado, financiado, financiadoValor, documentation, photos, signature, lgpd]
   );
+
+  useEffect(() => {
+    latestStateRef.current = stateSnapshot as Record<string, unknown>;
+  }, [stateSnapshot]);
+
+  useEffect(() => {
+    latestEvaluationIdRef.current = evaluationId;
+  }, [evaluationId]);
 
   // Hydrate from local IndexedDB on first mount
   useEffect(() => {
