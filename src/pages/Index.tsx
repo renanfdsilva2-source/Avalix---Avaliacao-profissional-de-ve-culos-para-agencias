@@ -291,12 +291,18 @@ const Index = () => {
     if (!hydrated) return;
     if (localSaveTimer.current) clearTimeout(localSaveTimer.current);
     localSaveTimer.current = setTimeout(() => {
+      const id = evaluationId ?? createEvaluationId();
+      if (!evaluationId) setEvaluationId(id);
+      console.info("[Avalix Sync] salvamento local iniciado", { evaluationId: id });
       saveLocalDraft({
-        evaluationId,
+        evaluationId: id,
         state: stateSnapshot as Record<string, unknown>,
         updatedAt: Date.now(),
+        pendingUpload: photos.some((p) => p.src?.startsWith("data:")),
       });
-    }, 400);
+      setSyncState(online ? "pending" : "offline");
+      console.info("[Avalix Sync] salvamento local concluído", { evaluationId: id });
+    }, 500);
   }, [hydrated, stateSnapshot, evaluationId]);
 
   // Debounced cloud auto-save
@@ -304,24 +310,57 @@ const Index = () => {
     if (!hydrated) return;
     if (!online) { setSyncState("offline"); return; }
     if (cloudSaveTimer.current) clearTimeout(cloudSaveTimer.current);
-    cloudSaveTimer.current = setTimeout(() => { autoSaveToCloud(); }, 2500);
+    cloudSaveTimer.current = setTimeout(() => { autoSaveToCloud(); }, 1000);
     return () => { if (cloudSaveTimer.current) clearTimeout(cloudSaveTimer.current); };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [hydrated, online, stateSnapshot]);
 
+  const persistOffline = async (status: EvaluationStatus, error?: unknown) => {
+    const id = evaluationId ?? latestEvaluationIdRef.current ?? createEvaluationId();
+    if (!evaluationId) setEvaluationId(id);
+    const snapshot = latestStateRef.current ?? (stateSnapshot as Record<string, unknown>);
+    const clientUpdatedAt = new Date().toISOString();
+    await saveLocalDraft({ evaluationId: id, state: snapshot, updatedAt: Date.now(), pendingUpload: true });
+    await enqueueOfflineSave({ evaluationId: id, state: snapshot, updatedAt: Date.now(), pendingUpload: true, status, clientUpdatedAt });
+    setSyncState(navigator.onLine ? "error" : "offline");
+    console.error("[Avalix Sync] falha no backend; rascunho mantido localmente", {
+      evaluationId: id,
+      status,
+      error: error ? getErrorMessage(error) : "offline",
+    }, error);
+  };
+
+  const ensureEvaluationId = () => {
+    const id = evaluationId ?? latestEvaluationIdRef.current ?? createEvaluationId();
+    if (!evaluationId) setEvaluationId(id);
+    latestEvaluationIdRef.current = id;
+    return id;
+  };
+
   const autoSaveToCloud = async () => {
+    if (syncingRef.current) {
+      pendingSyncRef.current = true;
+      return;
+    }
+    syncingRef.current = true;
     try {
-      const { data: userData } = await supabase.auth.getUser();
-      if (!userData.user) return;
+      const { data: userData, error: userError } = await retryWithBackoff(
+        () => supabase.auth.getUser(),
+        { label: "verificação da sessão", retries: 2, timeoutMs: 10000 },
+      );
+      if (userError) throw userError;
+      if (!userData.user) throw new Error("Sessão expirada. Faça login novamente para sincronizar.");
       setSyncState("saving");
-      let id = evaluationId;
-      if (!id) {
-        const { data, error } = await supabase
-          .from("evaluations").insert({ status: "draft" }).select("id").single();
-        if (error) throw error;
-        id = data.id;
-        setEvaluationId(id);
-      }
+      const id = ensureEvaluationId();
+      console.info("[Avalix Sync] autosave iniciado", { evaluationId: id });
+
+      const initialRow = { id, user_id: userData.user.id, status: "draft", client_updated_at: new Date().toISOString() };
+      const { error: initError } = await retryWithBackoff(
+        () => supabase.from("evaluations").upsert(initialRow).select("id").single(),
+        { label: "criação do rascunho", retries: 3, timeoutMs: 15000 },
+      );
+      if (initError) throw initError;
+
       const uploaded = await uploadAllPhotos(id!, photos);
       setPhotos((prev) =>
         prev.map((p) => {
@@ -329,13 +368,24 @@ const Index = () => {
           return u && u.url ? { ...p, src: u.url } : p;
         })
       );
-      const row = buildDbRow("draft", uploaded);
-      const { error } = await supabase.from("evaluations").update(row).eq("id", id!);
+      const row = { id, user_id: userData.user.id, ...buildDbRow("draft", uploaded) };
+      const { error } = await retryWithBackoff(
+        () => supabase.from("evaluations").upsert(row).select("id,updated_at").single(),
+        { label: "autosave da avaliação", retries: 3, timeoutMs: 20000 },
+      );
       if (error) throw error;
       setSyncState("saved");
+      setLastSavedAt(new Date());
+      await saveLocalDraft({ evaluationId: id, state: latestStateRef.current ?? stateSnapshot as Record<string, unknown>, updatedAt: Date.now(), pendingUpload: false });
+      console.info("[Avalix Sync] autosave concluído", { evaluationId: id });
     } catch (e) {
-      console.error("auto-save failed", e);
-      setSyncState("error");
+      await persistOffline("draft", e);
+    } finally {
+      syncingRef.current = false;
+      if (pendingSyncRef.current && online) {
+        pendingSyncRef.current = false;
+        setTimeout(() => autoSaveToCloud(), 0);
+      }
     }
   };
   // ----------------------------------------------------------------------
