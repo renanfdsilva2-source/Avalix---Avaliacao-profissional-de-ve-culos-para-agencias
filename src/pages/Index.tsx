@@ -100,6 +100,7 @@ const Index = () => {
   const latestStateRef = useRef<Record<string, unknown> | null>(null);
   const latestEvaluationIdRef = useRef<string | null>(null);
   const syncingRef = useRef(false);
+  const pendingSyncRef = useRef(false);
 
   // Vehicle
   const [placa, setPlaca] = useState("");
