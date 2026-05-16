@@ -448,36 +448,43 @@ const Index = () => {
     last_sync_error: null,
   });
 
-  const persist = async (status: "draft" | "final"): Promise<string | null> => {
+  const persist = async (status: EvaluationStatus): Promise<{ id: string; uploaded: { key: string; label: string; url: string | null }[] } | null> => {
     setSaving(true);
     try {
-      let id = evaluationId;
-      if (!id) {
-        const { data, error } = await supabase
-          .from("evaluations")
-          .insert({ status: "draft" })
-          .select("id")
-          .single();
-        if (error) throw error;
-        id = data.id;
-        setEvaluationId(id);
-      }
-      // Upload photos (data URL → public URL)
-      const uploaded = await uploadAllPhotos(id!, photos);
-      // Replace state with uploaded URLs
+      if (!navigator.onLine) throw new Error("Sem conexão com a internet.");
+      const { data: userData, error: userError } = await retryWithBackoff(
+        () => supabase.auth.getUser(),
+        { label: "verificação da sessão", retries: 2, timeoutMs: 10000 },
+      );
+      if (userError) throw userError;
+      if (!userData.user) throw new Error("Sessão expirada. Faça login novamente.");
+
+      const id = ensureEvaluationId();
+      console.info("[Avalix Sync] salvamento iniciado", { evaluationId: id, status });
+
+      const uploaded = await uploadAllPhotos(id, photos);
       setPhotos((prev) =>
         prev.map((p) => {
           const u = uploaded.find((x) => x.key === p.key);
-          return u ? { ...p, src: u.url } : p;
+          return u && u.url ? { ...p, src: u.url } : p;
         })
       );
-      const row = buildDbRow(status, uploaded);
-      const { error } = await supabase.from("evaluations").update(row).eq("id", id!);
+
+      const row = { id, user_id: userData.user.id, ...buildDbRow(status, uploaded) };
+      const { error } = await retryWithBackoff(
+        () => Promise.resolve(supabase.from("evaluations").upsert(row).select("id,updated_at").single()),
+        { label: status === "completed" ? "finalização da avaliação" : "salvamento do rascunho", retries: 3, timeoutMs: 20000 },
+      );
       if (error) throw error;
-      return id!;
+      setSyncState("saved");
+      setLastSavedAt(new Date());
+      await saveLocalDraft({ evaluationId: id, state: latestStateRef.current ?? stateSnapshot as Record<string, unknown>, updatedAt: Date.now(), pendingUpload: false });
+      console.info("[Avalix Sync] salvamento concluído", { evaluationId: id, status });
+      return { id, uploaded };
     } catch (e) {
-      console.error(e);
-      toast.error("Erro ao salvar no banco de dados");
+      await persistOffline(status, e);
+      console.error("[Avalix Sync] erro real ao salvar", e);
+      toast.error("Não foi possível salvar no backend. Seus dados ficaram salvos neste dispositivo.");
       return null;
     } finally {
       setSaving(false);
@@ -495,8 +502,8 @@ const Index = () => {
       toast.success("Rascunho salvo no dispositivo. Será sincronizado quando voltar online.");
       return;
     }
-    const id = await persist("draft");
-    if (id) toast.success("Rascunho salvo!");
+    const saved = await persist("draft");
+    if (saved) toast.success("Rascunho salvo!");
   };
 
   const resetForm = () => {
