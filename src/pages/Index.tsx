@@ -292,7 +292,7 @@ const Index = () => {
       // Trigger immediate sync of any pending local changes
       if (hydrated) {
         toast.success("Conexão restaurada — sincronizando…");
-        autoSaveToCloud();
+        syncOfflineQueue();
       }
     };
     const goOffline = () => {
@@ -308,6 +308,14 @@ const Index = () => {
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [hydrated]);
+
+  const syncOfflineQueue = async () => {
+    const queue: OfflineQueueItem[] = await loadOfflineQueue();
+    if (queue.length > 0) console.info("[Avalix Sync] fila offline encontrada", { total: queue.length });
+    await autoSaveToCloud();
+    await Promise.all(queue.map((item) => removeOfflineQueueItem(item.id)));
+    if (queue.length > 0) console.info("[Avalix Sync] sincronização da fila concluída", { total: queue.length });
+  };
 
   // Warn before leaving if there are unsynced changes
   useEffect(() => {
