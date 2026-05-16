@@ -527,7 +527,7 @@ const Index = () => {
         () => Promise.resolve(
           supabase
             .from("evaluations")
-            .upsert({ id, user_id: userData.user.id, status: "draft", client_updated_at: new Date().toISOString() })
+            .upsert({ id, user_id: userData.user.id, status, client_updated_at: new Date().toISOString() })
             .select("id")
             .single(),
         ),
@@ -568,11 +568,22 @@ const Index = () => {
   const handleSaveDraft = async () => {
     // Sempre salva localmente primeiro (síncrono via auto-save IndexedDB).
     if (!online) {
+      const id = ensureEvaluationId();
       await saveLocalDraft({
-        evaluationId,
+        evaluationId: id,
         state: stateSnapshot as Record<string, unknown>,
         updatedAt: Date.now(),
+        pendingUpload: true,
       });
+      await enqueueOfflineSave({
+        evaluationId: id,
+        state: stateSnapshot as Record<string, unknown>,
+        updatedAt: Date.now(),
+        pendingUpload: true,
+        status: "draft",
+        clientUpdatedAt: new Date().toISOString(),
+      });
+      setSyncState("offline");
       toast.success("Rascunho salvo no dispositivo. Será sincronizado quando voltar online.");
       return;
     }
