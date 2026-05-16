@@ -581,10 +581,10 @@ const Index = () => {
     }
     try {
       // Save as final + upload photos first
-      const id = await persist("final");
-      if (!id) return;
+      const saved = await persist("completed");
+      if (!saved) return;
       // Build PDF using uploaded URLs (state may not be updated synchronously)
-      await generateEvaluationPdf(collectForPdf());
+      await generateEvaluationPdf(collectForPdf(saved.uploaded));
       toast.success("Avaliação finalizada e PDF gerado!");
     } catch (e) {
       console.error(e);
