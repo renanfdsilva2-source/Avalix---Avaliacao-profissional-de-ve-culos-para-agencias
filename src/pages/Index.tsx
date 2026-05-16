@@ -41,10 +41,21 @@ import { DraftsList } from "@/components/DraftsList";
 import { generateEvaluationPdf } from "@/lib/pdf";
 import { supabase } from "@/integrations/supabase/client";
 import { uploadAllPhotos } from "@/lib/storage";
-import { loadLocalDraft, saveLocalDraft, clearLocalDraft } from "@/lib/localDraft";
+import {
+  loadLocalDraft,
+  saveLocalDraft,
+  clearLocalDraft,
+  enqueueOfflineSave,
+  loadOfflineQueue,
+  removeOfflineQueueItem,
+  type OfflineQueueItem,
+} from "@/lib/localDraft";
+import { getErrorMessage, retryWithBackoff } from "@/lib/resilience";
 
 type Cambio = "manual" | "automatico" | null;
 type SimNao = "sim" | "nao" | null;
+type EvaluationStatus = "draft" | "completed";
+type SyncState = "idle" | "saving" | "saved" | "offline" | "error" | "pending";
 
 const DEFAULT_PHOTO_SLOTS = [
   { key: "frente", label: "Frente" },
@@ -74,14 +85,25 @@ const parseMoney = (v: string) => {
 const formatBRL = (n: number) =>
   n.toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
 
+const createEvaluationId = () => crypto.randomUUID();
+
 const initialRepairs = (): RepairItem[] =>
   DEFAULT_REPAIRS.map((r) => ({ label: r.label, checked: false, value: "" }));
 
 const Index = () => {
   // Loaded eval id (null = new)
   const [evaluationId, setEvaluationId] = useState<string | null>(null);
+  const [evaluationStatus, setEvaluationStatus] = useState<EvaluationStatus>("draft");
   const [showDrafts, setShowDrafts] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [exporting, setExporting] = useState(false);
+  const [lastSavedAt, setLastSavedAt] = useState<Date | null>(null);
+  const [loadedLocalDraft, setLoadedLocalDraft] = useState(false);
+  const [recoveryChecked, setRecoveryChecked] = useState(false);
+  const latestStateRef = useRef<Record<string, unknown> | null>(null);
+  const latestEvaluationIdRef = useRef<string | null>(null);
+  const syncingRef = useRef(false);
+  const pendingSyncRef = useRef(false);
 
   // Vehicle
   const [placa, setPlaca] = useState("");
@@ -131,7 +153,7 @@ const Index = () => {
   // Auto-save status
   const [hydrated, setHydrated] = useState(false);
   const [online, setOnline] = useState<boolean>(typeof navigator !== "undefined" ? navigator.onLine : true);
-  const [syncState, setSyncState] = useState<"idle" | "saving" | "saved" | "offline" | "error">("idle");
+  const [syncState, setSyncState] = useState<SyncState>("idle");
   const localSaveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const cloudSaveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
@@ -184,17 +206,31 @@ const Index = () => {
       documentation,
       photos,
       signature, lgpd,
+      status: evaluationStatus,
+      clientUpdatedAt: new Date().toISOString(),
     }),
-    [placa, marca, modelo, ano, cor, fipe, km, cambio, pintura, pneus, higienizacao, outros, manutencao, manutencaoValor, repairs, customRepairs, gnv, pinturaTotal, blindado, financiado, financiadoValor, documentation, photos, signature, lgpd]
+    [placa, marca, modelo, ano, cor, fipe, km, cambio, pintura, pneus, higienizacao, outros, manutencao, manutencaoValor, repairs, customRepairs, gnv, pinturaTotal, blindado, financiado, financiadoValor, documentation, photos, signature, lgpd, evaluationStatus]
   );
+
+  useEffect(() => {
+    latestStateRef.current = stateSnapshot as Record<string, unknown>;
+  }, [stateSnapshot]);
+
+  useEffect(() => {
+    latestEvaluationIdRef.current = evaluationId;
+  }, [evaluationId]);
 
   // Hydrate from local IndexedDB on first mount
   useEffect(() => {
     (async () => {
       const draft = await loadLocalDraft();
       if (draft?.state) {
+        console.info("[Avalix Sync] rascunho local recuperado", { evaluationId: draft.evaluationId, updatedAt: draft.updatedAt });
+        setLoadedLocalDraft(true);
         const s = draft.state as Record<string, any>;
-        setEvaluationId(draft.evaluationId);
+        const restoredId = draft.evaluationId ?? createEvaluationId();
+        setEvaluationId(restoredId);
+        setEvaluationStatus(s.status === "completed" || s.status === "final" ? "completed" : "draft");
         setPlaca(s.placa ?? ""); setMarca(s.marca ?? ""); setModelo(s.modelo ?? "");
         setAno(s.ano ?? ""); setCor(s.cor ?? ""); setFipe(s.fipe ?? "");
         setKm(s.km ?? ""); setCambio(s.cambio ?? null);
@@ -211,10 +247,51 @@ const Index = () => {
         if (Array.isArray(s.photos) && s.photos.length) setPhotos(s.photos);
         setSignature(s.signature ?? null);
         setLgpd(!!s.lgpd);
+        setRecoveryChecked(true);
+      } else {
+        const newId = createEvaluationId();
+        console.info("[Avalix Sync] novo rascunho local criado", { evaluationId: newId });
+        setEvaluationId(newId);
+        if (typeof navigator !== "undefined" && !navigator.onLine) setRecoveryChecked(true);
       }
       setHydrated(true);
     })();
   }, []);
+
+  useEffect(() => {
+    if (!hydrated || loadedLocalDraft || !online) return;
+    (async () => {
+      try {
+        const { data: userData } = await retryWithBackoff(
+          () => supabase.auth.getUser(),
+          { label: "verificação da sessão para recuperar rascunho", retries: 2, timeoutMs: 10000 },
+        );
+        if (!userData.user) return;
+        const { data, error } = await retryWithBackoff(
+          () => Promise.resolve(
+            supabase
+              .from("evaluations")
+              .select("*")
+              .eq("status", "draft")
+              .order("updated_at", { ascending: false })
+              .limit(1)
+              .maybeSingle(),
+          ),
+          { label: "recuperação automática de rascunho", retries: 2, timeoutMs: 12000 },
+        );
+        if (error) throw error;
+        if (data) {
+          console.info("[Avalix Sync] rascunho remoto recuperado", { evaluationId: data.id });
+          await loadEvaluation(data.id, { silent: true });
+        }
+      } catch (error) {
+        console.warn("[Avalix Sync] recuperação automática de rascunho falhou", getErrorMessage(error), error);
+      } finally {
+        setRecoveryChecked(true);
+      }
+    })();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [hydrated, loadedLocalDraft, online]);
 
   // Online/offline status — auto-sync pending changes when connection returns
   useEffect(() => {
@@ -223,7 +300,7 @@ const Index = () => {
       // Trigger immediate sync of any pending local changes
       if (hydrated) {
         toast.success("Conexão restaurada — sincronizando…");
-        autoSaveToCloud();
+        syncOfflineQueue();
       }
     };
     const goOffline = () => {
@@ -240,6 +317,14 @@ const Index = () => {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [hydrated]);
 
+  const syncOfflineQueue = async () => {
+    const queue: OfflineQueueItem[] = await loadOfflineQueue();
+    if (queue.length > 0) console.info("[Avalix Sync] fila offline encontrada", { total: queue.length });
+    await autoSaveToCloud();
+    await Promise.all(queue.map((item) => removeOfflineQueueItem(item.id)));
+    if (queue.length > 0) console.info("[Avalix Sync] sincronização da fila concluída", { total: queue.length });
+  };
+
   // Warn before leaving if there are unsynced changes
   useEffect(() => {
     const handler = (e: BeforeUnloadEvent) => {
@@ -254,40 +339,80 @@ const Index = () => {
 
   // Debounced local save (IndexedDB) — works offline
   useEffect(() => {
-    if (!hydrated) return;
+    if (!hydrated || !recoveryChecked) return;
     if (localSaveTimer.current) clearTimeout(localSaveTimer.current);
     localSaveTimer.current = setTimeout(() => {
+      const id = evaluationId ?? createEvaluationId();
+      if (!evaluationId) setEvaluationId(id);
+      console.info("[Avalix Sync] salvamento local iniciado", { evaluationId: id });
       saveLocalDraft({
-        evaluationId,
+        evaluationId: id,
         state: stateSnapshot as Record<string, unknown>,
         updatedAt: Date.now(),
+        pendingUpload: photos.some((p) => p.src?.startsWith("data:")),
       });
-    }, 400);
-  }, [hydrated, stateSnapshot, evaluationId]);
+      setSyncState(online ? "pending" : "offline");
+      console.info("[Avalix Sync] salvamento local concluído", { evaluationId: id });
+    }, 500);
+  }, [hydrated, recoveryChecked, stateSnapshot, evaluationId]);
 
   // Debounced cloud auto-save
   useEffect(() => {
-    if (!hydrated) return;
+    if (!hydrated || !recoveryChecked) return;
     if (!online) { setSyncState("offline"); return; }
     if (cloudSaveTimer.current) clearTimeout(cloudSaveTimer.current);
-    cloudSaveTimer.current = setTimeout(() => { autoSaveToCloud(); }, 2500);
+    cloudSaveTimer.current = setTimeout(() => { autoSaveToCloud(); }, 1000);
     return () => { if (cloudSaveTimer.current) clearTimeout(cloudSaveTimer.current); };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [hydrated, online, stateSnapshot]);
+  }, [hydrated, recoveryChecked, online, stateSnapshot]);
+
+  const persistOffline = async (status: EvaluationStatus, error?: unknown) => {
+    const id = evaluationId ?? latestEvaluationIdRef.current ?? createEvaluationId();
+    if (!evaluationId) setEvaluationId(id);
+    const snapshot = latestStateRef.current ?? (stateSnapshot as Record<string, unknown>);
+    const clientUpdatedAt = new Date().toISOString();
+    await saveLocalDraft({ evaluationId: id, state: snapshot, updatedAt: Date.now(), pendingUpload: true });
+    await enqueueOfflineSave({ evaluationId: id, state: snapshot, updatedAt: Date.now(), pendingUpload: true, status, clientUpdatedAt });
+    setSyncState(navigator.onLine ? "error" : "offline");
+    console.error("[Avalix Sync] falha no backend; rascunho mantido localmente", {
+      evaluationId: id,
+      status,
+      error: error ? getErrorMessage(error) : "offline",
+    }, error);
+  };
+
+  const ensureEvaluationId = () => {
+    const id = evaluationId ?? latestEvaluationIdRef.current ?? createEvaluationId();
+    if (!evaluationId) setEvaluationId(id);
+    latestEvaluationIdRef.current = id;
+    return id;
+  };
 
   const autoSaveToCloud = async () => {
+    if (syncingRef.current) {
+      pendingSyncRef.current = true;
+      return;
+    }
+    syncingRef.current = true;
     try {
-      const { data: userData } = await supabase.auth.getUser();
-      if (!userData.user) return;
+      const { data: userData, error: userError } = await retryWithBackoff(
+        () => supabase.auth.getUser(),
+        { label: "verificação da sessão", retries: 2, timeoutMs: 10000 },
+      );
+      if (userError) throw userError;
+      if (!userData.user) throw new Error("Sessão expirada. Faça login novamente para sincronizar.");
       setSyncState("saving");
-      let id = evaluationId;
-      if (!id) {
-        const { data, error } = await supabase
-          .from("evaluations").insert({ status: "draft" }).select("id").single();
-        if (error) throw error;
-        id = data.id;
-        setEvaluationId(id);
-      }
+      const id = ensureEvaluationId();
+      const statusForSave = evaluationStatus;
+      console.info("[Avalix Sync] autosave iniciado", { evaluationId: id, status: statusForSave });
+
+      const initialRow = { id, user_id: userData.user.id, status: statusForSave, client_updated_at: new Date().toISOString() };
+      const { error: initError } = await retryWithBackoff(
+        () => Promise.resolve(supabase.from("evaluations").upsert(initialRow).select("id").single()),
+        { label: "criação do rascunho", retries: 3, timeoutMs: 15000 },
+      );
+      if (initError) throw initError;
+
       const uploaded = await uploadAllPhotos(id!, photos);
       setPhotos((prev) =>
         prev.map((p) => {
@@ -295,13 +420,24 @@ const Index = () => {
           return u && u.url ? { ...p, src: u.url } : p;
         })
       );
-      const row = buildDbRow("draft", uploaded);
-      const { error } = await supabase.from("evaluations").update(row).eq("id", id!);
+      const row = { id, user_id: userData.user.id, ...buildDbRow(statusForSave, uploaded) };
+      const { error } = await retryWithBackoff(
+        () => Promise.resolve(supabase.from("evaluations").upsert(row).select("id,updated_at").single()),
+        { label: "autosave da avaliação", retries: 3, timeoutMs: 20000 },
+      );
       if (error) throw error;
       setSyncState("saved");
+      setLastSavedAt(new Date());
+      await saveLocalDraft({ evaluationId: id, state: latestStateRef.current ?? stateSnapshot as Record<string, unknown>, updatedAt: Date.now(), pendingUpload: false });
+      console.info("[Avalix Sync] autosave concluído", { evaluationId: id, status: statusForSave });
     } catch (e) {
-      console.error("auto-save failed", e);
-      setSyncState("error");
+      await persistOffline("draft", e);
+    } finally {
+      syncingRef.current = false;
+      if (pendingSyncRef.current && online) {
+        pendingSyncRef.current = false;
+        setTimeout(() => autoSaveToCloud(), 0);
+      }
     }
   };
   // ----------------------------------------------------------------------
@@ -330,7 +466,16 @@ const Index = () => {
     };
   };
 
-  const buildDbRow = (status: "draft" | "final", uploaded: { key: string; label: string; url: string | null }[]) => ({
+  const snapshotWithUploadedPhotos = (uploaded: { key: string; label: string; url: string | null }[]) => ({
+    ...(latestStateRef.current ?? (stateSnapshot as Record<string, unknown>)),
+    photos: photos.map((p) => {
+      const saved = uploaded.find((x) => x.key === p.key);
+      return saved && saved.url ? { ...p, src: saved.url } : p;
+    }),
+    clientUpdatedAt: new Date().toISOString(),
+  });
+
+  const buildDbRow = (status: EvaluationStatus, uploaded: { key: string; label: string; url: string | null }[]) => ({
     status,
     placa,
     marca,
@@ -360,38 +505,60 @@ const Index = () => {
     fipe_value: fipeValue,
     total_descontos: totalDescontos,
     valor_final: valorFinal,
+    client_updated_at: new Date().toISOString(),
+    last_sync_error: null,
   });
 
-  const persist = async (status: "draft" | "final"): Promise<string | null> => {
+  const persist = async (status: EvaluationStatus): Promise<{ id: string; uploaded: { key: string; label: string; url: string | null }[] } | null> => {
     setSaving(true);
     try {
-      let id = evaluationId;
-      if (!id) {
-        const { data, error } = await supabase
-          .from("evaluations")
-          .insert({ status: "draft" })
-          .select("id")
-          .single();
-        if (error) throw error;
-        id = data.id;
-        setEvaluationId(id);
-      }
-      // Upload photos (data URL → public URL)
-      const uploaded = await uploadAllPhotos(id!, photos);
-      // Replace state with uploaded URLs
+      if (!navigator.onLine) throw new Error("Sem conexão com a internet.");
+      const { data: userData, error: userError } = await retryWithBackoff(
+        () => supabase.auth.getUser(),
+        { label: "verificação da sessão", retries: 2, timeoutMs: 10000 },
+      );
+      if (userError) throw userError;
+      if (!userData.user) throw new Error("Sessão expirada. Faça login novamente.");
+
+      const id = ensureEvaluationId();
+      console.info("[Avalix Sync] salvamento iniciado", { evaluationId: id, status });
+
+      const { error: initError } = await retryWithBackoff(
+        () => Promise.resolve(
+          supabase
+            .from("evaluations")
+            .upsert({ id, user_id: userData.user.id, status: "draft", client_updated_at: new Date().toISOString() })
+            .select("id")
+            .single(),
+        ),
+        { label: "garantia do rascunho antes do upload", retries: 3, timeoutMs: 15000 },
+      );
+      if (initError) throw initError;
+
+      const uploaded = await uploadAllPhotos(id, photos);
       setPhotos((prev) =>
         prev.map((p) => {
           const u = uploaded.find((x) => x.key === p.key);
-          return u ? { ...p, src: u.url } : p;
+          return u && u.url ? { ...p, src: u.url } : p;
         })
       );
-      const row = buildDbRow(status, uploaded);
-      const { error } = await supabase.from("evaluations").update(row).eq("id", id!);
+
+      const row = { id, user_id: userData.user.id, ...buildDbRow(status, uploaded) };
+      const { error } = await retryWithBackoff(
+        () => Promise.resolve(supabase.from("evaluations").upsert(row).select("id,updated_at").single()),
+        { label: status === "completed" ? "finalização da avaliação" : "salvamento do rascunho", retries: 3, timeoutMs: 20000 },
+      );
       if (error) throw error;
-      return id!;
+      setEvaluationStatus(status);
+      setSyncState("saved");
+      setLastSavedAt(new Date());
+      await saveLocalDraft({ evaluationId: id, state: snapshotWithUploadedPhotos(uploaded), updatedAt: Date.now(), pendingUpload: false });
+      console.info("[Avalix Sync] salvamento concluído", { evaluationId: id, status });
+      return { id, uploaded };
     } catch (e) {
-      console.error(e);
-      toast.error("Erro ao salvar no banco de dados");
+      await persistOffline(status, e);
+      console.error("[Avalix Sync] erro real ao salvar", e);
+      toast.error("Não foi possível salvar no backend. Seus dados ficaram salvos neste dispositivo.");
       return null;
     } finally {
       setSaving(false);
@@ -401,20 +568,32 @@ const Index = () => {
   const handleSaveDraft = async () => {
     // Sempre salva localmente primeiro (síncrono via auto-save IndexedDB).
     if (!online) {
+      const id = ensureEvaluationId();
       await saveLocalDraft({
-        evaluationId,
+        evaluationId: id,
         state: stateSnapshot as Record<string, unknown>,
         updatedAt: Date.now(),
+        pendingUpload: true,
       });
+      await enqueueOfflineSave({
+        evaluationId: id,
+        state: stateSnapshot as Record<string, unknown>,
+        updatedAt: Date.now(),
+        pendingUpload: true,
+        status: "draft",
+        clientUpdatedAt: new Date().toISOString(),
+      });
+      setSyncState("offline");
       toast.success("Rascunho salvo no dispositivo. Será sincronizado quando voltar online.");
       return;
     }
-    const id = await persist("draft");
-    if (id) toast.success("Rascunho salvo!");
+    const saved = await persist("draft");
+    if (saved) toast.success("Rascunho salvo!");
   };
 
   const resetForm = () => {
     setEvaluationId(null);
+    setEvaluationStatus("draft");
     setPlaca(""); setMarca(""); setModelo(""); setAno(""); setCor("");
     setFipe(""); setKm(""); setCambio(null);
     setPintura(0); setPneus(0); setHigienizacao(false); setOutros("");
@@ -429,13 +608,17 @@ const Index = () => {
     setSyncState("idle");
   };
 
-  const loadEvaluation = async (id: string) => {
-    const { data, error } = await supabase.from("evaluations").select("*").eq("id", id).single();
+  const loadEvaluation = async (id: string, options?: { silent?: boolean }) => {
+    const { data, error } = await retryWithBackoff(
+      () => Promise.resolve(supabase.from("evaluations").select("*").eq("id", id).maybeSingle()),
+      { label: "carregamento da avaliação", retries: 2, timeoutMs: 12000 },
+    );
     if (error || !data) {
       toast.error("Erro ao carregar avaliação");
       return;
     }
     setEvaluationId(id);
+    setEvaluationStatus(data.status === "completed" || data.status === "final" ? "completed" : "draft");
     setPlaca(data.placa ?? "");
     setMarca(data.marca ?? "");
     setModelo(data.modelo ?? "");
@@ -470,7 +653,9 @@ const Index = () => {
     setSignature(data.signature ?? null);
     setLgpd(false);
     setShowDrafts(false);
-    toast.success("Avaliação carregada");
+    setSyncState("saved");
+    setLastSavedAt(new Date(data.updated_at));
+    if (!options?.silent) toast.success("Avaliação carregada");
   };
 
   const handleDownload = async () => {
@@ -486,16 +671,24 @@ const Index = () => {
       toast.error("É necessário aceitar os termos LGPD.");
       return;
     }
+    if (fipeValue <= 0) {
+      toast.error("Informe o valor FIPE antes de finalizar.");
+      return;
+    }
+    setExporting(true);
     try {
       // Save as final + upload photos first
-      const id = await persist("final");
-      if (!id) return;
+      const saved = await persist("completed");
+      if (!saved) return;
       // Build PDF using uploaded URLs (state may not be updated synchronously)
-      await generateEvaluationPdf(collectForPdf());
+      await generateEvaluationPdf(collectForPdf(saved.uploaded));
+      console.info("[Avalix PDF] PDF gerado", { evaluationId: saved.id, photos: saved.uploaded.filter((p) => p.url).length });
       toast.success("Avaliação finalizada e PDF gerado!");
     } catch (e) {
-      console.error(e);
-      toast.error("Erro ao gerar PDF.");
+      console.error("[Avalix PDF] erro real ao gerar PDF", e);
+      toast.error(`Erro ao gerar PDF: ${getErrorMessage(e)}`);
+    } finally {
+      setExporting(false);
     }
   };
 
@@ -756,18 +949,18 @@ const Index = () => {
           <button
             type="button"
             onClick={handleSaveDraft}
-            disabled={saving}
+            disabled={saving || exporting}
             className="h-12 rounded-lg bg-secondary/80 text-foreground font-semibold flex items-center justify-center gap-1.5 hover:bg-secondary transition-smooth border border-border text-sm disabled:opacity-60"
           >
-            <Save className="h-4 w-4" /> Rascunho
+            <Save className="h-4 w-4" /> {saving ? "Salvando" : "Rascunho"}
           </button>
           <button
             type="button"
             onClick={handleDownload}
-            disabled={saving}
+            disabled={saving || exporting}
             className="h-12 rounded-lg btn-primary-corp flex items-center justify-center gap-1.5 text-sm disabled:opacity-60"
           >
-            <FileDown className="h-4 w-4" /> Finalizar
+            <FileDown className="h-4 w-4" /> {exporting ? "Gerando" : "Finalizar"}
           </button>
           <button
             type="button"

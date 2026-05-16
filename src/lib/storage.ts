@@ -1,4 +1,5 @@
 import { supabase } from "@/integrations/supabase/client";
+import { retryWithBackoff } from "@/lib/resilience";
 
 const BUCKET = "evaluation-photos";
 
@@ -15,16 +16,19 @@ export async function uploadPhoto(evaluationId: string, dataUrl: string, slotKey
   const blob = dataUrlToBlob(dataUrl);
   const ext = blob.type.includes("png") ? "png" : "jpg";
   const path = `${evaluationId}/${slotKey}-${Date.now()}.${ext}`;
-  const { error } = await supabase.storage.from(BUCKET).upload(path, blob, {
-    contentType: blob.type,
-    upsert: true,
-  });
+  console.info("[Avalix Storage] upload iniciado", { evaluationId, slotKey, size: blob.size, type: blob.type });
+  const { error } = await retryWithBackoff(
+    () => supabase.storage.from(BUCKET).upload(path, blob, { contentType: blob.type, upsert: true }),
+    { label: `upload da foto ${slotKey}`, retries: 3, timeoutMs: 25000 },
+  );
   if (error) throw error;
   // Bucket is private; return a long-lived signed URL so authenticated users can view the photo.
-  const { data: signed, error: signErr } = await supabase.storage
-    .from(BUCKET)
-    .createSignedUrl(path, 60 * 60 * 24 * 365);
+  const { data: signed, error: signErr } = await retryWithBackoff(
+    () => supabase.storage.from(BUCKET).createSignedUrl(path, 60 * 60 * 24 * 365),
+    { label: `assinatura da foto ${slotKey}`, retries: 2, timeoutMs: 15000 },
+  );
   if (signErr || !signed) throw signErr ?? new Error("Failed to sign URL");
+  console.info("[Avalix Storage] upload concluído", { evaluationId, slotKey, path });
   return signed.signedUrl;
 }
 

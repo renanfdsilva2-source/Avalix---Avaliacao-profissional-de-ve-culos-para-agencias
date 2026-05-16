@@ -76,10 +76,10 @@ export const DraftsList = ({ open, onClose, onLoad }: Props) => {
                 <div className="flex items-center gap-2">
                   <span
                     className={`text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded ${
-                      d.status === "final" ? "bg-success/20 text-success" : "bg-muted text-muted-foreground"
+                      d.status === "completed" || d.status === "final" ? "bg-success/20 text-success" : "bg-muted text-muted-foreground"
                     }`}
                   >
-                    {d.status === "final" ? "Final" : "Rascunho"}
+                    {d.status === "completed" || d.status === "final" ? "Final" : "Rascunho"}
                   </span>
                   <span className="font-semibold truncate">
                     {d.placa || "Sem placa"} — {d.marca} {d.modelo}
