@@ -66,6 +66,7 @@ export type Database = {
           ano: string | null
           blindado: boolean
           cambio: string | null
+          client_updated_at: string | null
           cor: string | null
           created_at: string
           custom_repairs: Json
@@ -78,6 +79,7 @@ export type Database = {
           higienizacao: boolean
           id: string
           km: string | null
+          last_sync_error: string | null
           manutencao_status: string | null
           manutencao_valor: number
           marca: string | null
@@ -92,6 +94,7 @@ export type Database = {
           repairs: Json
           signature: string | null
           status: string
+          sync_version: number
           total_descontos: number
           updated_at: string
           user_id: string | null
@@ -101,6 +104,7 @@ export type Database = {
           ano?: string | null
           blindado?: boolean
           cambio?: string | null
+          client_updated_at?: string | null
           cor?: string | null
           created_at?: string
           custom_repairs?: Json
@@ -113,6 +117,7 @@ export type Database = {
           higienizacao?: boolean
           id?: string
           km?: string | null
+          last_sync_error?: string | null
           manutencao_status?: string | null
           manutencao_valor?: number
           marca?: string | null
@@ -127,6 +132,7 @@ export type Database = {
           repairs?: Json
           signature?: string | null
           status?: string
+          sync_version?: number
           total_descontos?: number
           updated_at?: string
           user_id?: string | null
@@ -136,6 +142,7 @@ export type Database = {
           ano?: string | null
           blindado?: boolean
           cambio?: string | null
+          client_updated_at?: string | null
           cor?: string | null
           created_at?: string
           custom_repairs?: Json
@@ -148,6 +155,7 @@ export type Database = {
           higienizacao?: boolean
           id?: string
           km?: string | null
+          last_sync_error?: string | null
           manutencao_status?: string | null
           manutencao_valor?: number
           marca?: string | null
@@ -162,6 +170,7 @@ export type Database = {
           repairs?: Json
           signature?: string | null
           status?: string
+          sync_version?: number
           total_descontos?: number
           updated_at?: string
           user_id?: string | null
