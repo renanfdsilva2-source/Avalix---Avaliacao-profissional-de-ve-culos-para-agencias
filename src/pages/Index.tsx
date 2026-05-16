@@ -527,7 +527,7 @@ const Index = () => {
         () => Promise.resolve(
           supabase
             .from("evaluations")
-            .upsert({ id, user_id: userData.user.id, status, client_updated_at: new Date().toISOString() })
+            .upsert({ id, user_id: userData.user.id, status: "draft", client_updated_at: new Date().toISOString() })
             .select("id")
             .single(),
         ),
@@ -949,18 +949,18 @@ const Index = () => {
           <button
             type="button"
             onClick={handleSaveDraft}
-            disabled={saving}
+            disabled={saving || exporting}
             className="h-12 rounded-lg bg-secondary/80 text-foreground font-semibold flex items-center justify-center gap-1.5 hover:bg-secondary transition-smooth border border-border text-sm disabled:opacity-60"
           >
-            <Save className="h-4 w-4" /> Rascunho
+            <Save className="h-4 w-4" /> {saving ? "Salvando" : "Rascunho"}
           </button>
           <button
             type="button"
             onClick={handleDownload}
-            disabled={saving}
+            disabled={saving || exporting}
             className="h-12 rounded-lg btn-primary-corp flex items-center justify-center gap-1.5 text-sm disabled:opacity-60"
           >
-            <FileDown className="h-4 w-4" /> Finalizar
+            <FileDown className="h-4 w-4" /> {exporting ? "Gerando" : "Finalizar"}
           </button>
           <button
             type="button"
