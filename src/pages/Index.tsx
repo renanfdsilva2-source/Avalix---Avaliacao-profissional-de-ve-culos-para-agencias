@@ -414,6 +414,15 @@ const Index = () => {
     };
   };
 
+  const snapshotWithUploadedPhotos = (uploaded: { key: string; label: string; url: string | null }[]) => ({
+    ...(latestStateRef.current ?? (stateSnapshot as Record<string, unknown>)),
+    photos: photos.map((p) => {
+      const saved = uploaded.find((x) => x.key === p.key);
+      return saved && saved.url ? { ...p, src: saved.url } : p;
+    }),
+    clientUpdatedAt: new Date().toISOString(),
+  });
+
   const buildDbRow = (status: EvaluationStatus, uploaded: { key: string; label: string; url: string | null }[]) => ({
     status,
     placa,
@@ -462,6 +471,18 @@ const Index = () => {
       const id = ensureEvaluationId();
       console.info("[Avalix Sync] salvamento iniciado", { evaluationId: id, status });
 
+      const { error: initError } = await retryWithBackoff(
+        () => Promise.resolve(
+          supabase
+            .from("evaluations")
+            .upsert({ id, user_id: userData.user.id, status: "draft", client_updated_at: new Date().toISOString() })
+            .select("id")
+            .single(),
+        ),
+        { label: "garantia do rascunho antes do upload", retries: 3, timeoutMs: 15000 },
+      );
+      if (initError) throw initError;
+
       const uploaded = await uploadAllPhotos(id, photos);
       setPhotos((prev) =>
         prev.map((p) => {
@@ -478,7 +499,7 @@ const Index = () => {
       if (error) throw error;
       setSyncState("saved");
       setLastSavedAt(new Date());
-      await saveLocalDraft({ evaluationId: id, state: latestStateRef.current ?? stateSnapshot as Record<string, unknown>, updatedAt: Date.now(), pendingUpload: false });
+      await saveLocalDraft({ evaluationId: id, state: snapshotWithUploadedPhotos(uploaded), updatedAt: Date.now(), pendingUpload: false });
       console.info("[Avalix Sync] salvamento concluído", { evaluationId: id, status });
       return { id, uploaded };
     } catch (e) {
