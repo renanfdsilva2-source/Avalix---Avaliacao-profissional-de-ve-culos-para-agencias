@@ -41,10 +41,21 @@ import { DraftsList } from "@/components/DraftsList";
 import { generateEvaluationPdf } from "@/lib/pdf";
 import { supabase } from "@/integrations/supabase/client";
 import { uploadAllPhotos } from "@/lib/storage";
-import { loadLocalDraft, saveLocalDraft, clearLocalDraft } from "@/lib/localDraft";
+import {
+  loadLocalDraft,
+  saveLocalDraft,
+  clearLocalDraft,
+  enqueueOfflineSave,
+  loadOfflineQueue,
+  removeOfflineQueueItem,
+  type OfflineQueueItem,
+} from "@/lib/localDraft";
+import { getErrorMessage, retryWithBackoff } from "@/lib/resilience";
 
 type Cambio = "manual" | "automatico" | null;
 type SimNao = "sim" | "nao" | null;
+type EvaluationStatus = "draft" | "completed";
+type SyncState = "idle" | "saving" | "saved" | "offline" | "error" | "pending";
 
 const DEFAULT_PHOTO_SLOTS = [
   { key: "frente", label: "Frente" },
@@ -73,6 +84,8 @@ const parseMoney = (v: string) => {
 };
 const formatBRL = (n: number) =>
   n.toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
+
+const createEvaluationId = () => crypto.randomUUID();
 
 const initialRepairs = (): RepairItem[] =>
   DEFAULT_REPAIRS.map((r) => ({ label: r.label, checked: false, value: "" }));
