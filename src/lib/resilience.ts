@@ -25,7 +25,7 @@ export async function withTimeout<T>(promise: PromiseLike<T>, label: string, tim
 }
 
 export async function retryWithBackoff<T>(
-  operation: () => Promise<T>,
+  operation: () => PromiseLike<T>,
   options: { label: string; retries?: number; baseDelayMs?: number; timeoutMs?: number },
 ): Promise<T> {
   const retries = options.retries ?? 3;
