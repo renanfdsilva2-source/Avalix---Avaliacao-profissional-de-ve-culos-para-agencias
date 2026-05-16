@@ -95,6 +95,11 @@ const Index = () => {
   const [evaluationId, setEvaluationId] = useState<string | null>(null);
   const [showDrafts, setShowDrafts] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [exporting, setExporting] = useState(false);
+  const [lastSavedAt, setLastSavedAt] = useState<Date | null>(null);
+  const latestStateRef = useRef<Record<string, unknown> | null>(null);
+  const latestEvaluationIdRef = useRef<string | null>(null);
+  const syncingRef = useRef(false);
 
   // Vehicle
   const [placa, setPlaca] = useState("");
@@ -144,7 +149,7 @@ const Index = () => {
   // Auto-save status
   const [hydrated, setHydrated] = useState(false);
   const [online, setOnline] = useState<boolean>(typeof navigator !== "undefined" ? navigator.onLine : true);
-  const [syncState, setSyncState] = useState<"idle" | "saving" | "saved" | "offline" | "error">("idle");
+  const [syncState, setSyncState] = useState<SyncState>("idle");
   const localSaveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const cloudSaveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
