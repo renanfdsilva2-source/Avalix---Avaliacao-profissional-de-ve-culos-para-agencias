@@ -356,7 +356,7 @@ const Index = () => {
 
       const initialRow = { id, user_id: userData.user.id, status: "draft", client_updated_at: new Date().toISOString() };
       const { error: initError } = await retryWithBackoff(
-        () => supabase.from("evaluations").upsert(initialRow).select("id").single(),
+        () => Promise.resolve(supabase.from("evaluations").upsert(initialRow).select("id").single()),
         { label: "criação do rascunho", retries: 3, timeoutMs: 15000 },
       );
       if (initError) throw initError;
@@ -370,7 +370,7 @@ const Index = () => {
       );
       const row = { id, user_id: userData.user.id, ...buildDbRow("draft", uploaded) };
       const { error } = await retryWithBackoff(
-        () => supabase.from("evaluations").upsert(row).select("id,updated_at").single(),
+        () => Promise.resolve(supabase.from("evaluations").upsert(row).select("id,updated_at").single()),
         { label: "autosave da avaliação", retries: 3, timeoutMs: 20000 },
       );
       if (error) throw error;
@@ -414,7 +414,7 @@ const Index = () => {
     };
   };
 
-  const buildDbRow = (status: "draft" | "final", uploaded: { key: string; label: string; url: string | null }[]) => ({
+  const buildDbRow = (status: EvaluationStatus, uploaded: { key: string; label: string; url: string | null }[]) => ({
     status,
     placa,
     marca,
@@ -444,6 +444,8 @@ const Index = () => {
     fipe_value: fipeValue,
     total_descontos: totalDescontos,
     valor_final: valorFinal,
+    client_updated_at: new Date().toISOString(),
+    last_sync_error: null,
   });
 
   const persist = async (status: "draft" | "final"): Promise<string | null> => {
