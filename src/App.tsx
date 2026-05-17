@@ -10,6 +10,7 @@ import type { Session } from "@supabase/supabase-js";
 import { supabase } from "@/integrations/supabase/client";
 import Index from "./pages/Index.tsx";
 import Agenda from "./pages/Agenda.tsx";
+import Billing from "./pages/Billing.tsx";
 import Login from "./pages/Login.tsx";
 import Register from "./pages/Register.tsx";
 import ForgotPassword from "./pages/ForgotPassword.tsx";
@@ -61,6 +62,7 @@ const AuthedArea = () => {
       <Routes>
         <Route path="/" element={<Shell><Index /></Shell>} />
         <Route path="/agenda" element={<Agenda />} />
+        <Route path="/billing" element={<Shell><Billing /></Shell>} />
         <Route path="*" element={<NotFound />} />
       </Routes>
       <AlarmModal appointment={active} onDismiss={dismiss} />
