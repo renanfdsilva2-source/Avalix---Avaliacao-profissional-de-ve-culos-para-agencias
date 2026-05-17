@@ -62,6 +62,7 @@ const AuthedArea = () => {
       <Routes>
         <Route path="/" element={<Shell><Index /></Shell>} />
         <Route path="/agenda" element={<Agenda />} />
+        <Route path="/billing" element={<Shell><Billing /></Shell>} />
         <Route path="*" element={<NotFound />} />
       </Routes>
       <AlarmModal appointment={active} onDismiss={dismiss} />
