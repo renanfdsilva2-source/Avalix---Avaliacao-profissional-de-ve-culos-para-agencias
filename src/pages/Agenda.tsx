@@ -149,6 +149,7 @@ export default function Agenda() {
         <p className="text-[11px] text-muted-foreground text-center pt-2">
           O alarme só toca com o app aberto. Mantenha esta aba ativa para receber a notificação sonora.
         </p>
+        </PremiumGate>
       </main>
     </div>
   );
