@@ -671,6 +671,7 @@ const Index = () => {
   };
 
   const handleDownload = async () => {
+    if (!requirePremium("exportar PDF")) return;
     if (!online) {
       toast.error("Sem conexão. Volte para a internet para finalizar e enviar ao banco.");
       return;
