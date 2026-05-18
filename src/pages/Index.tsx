@@ -934,11 +934,15 @@ const Index = () => {
               <span className="font-semibold">Total descontos</span>
               <span className="font-semibold text-destructive tabular-nums">{formatBRL(totalDescontos)}</span>
             </div>
-            <div className="mt-4 rounded-xl p-5 text-primary-foreground shadow-elevated relative overflow-hidden border border-primary/40" style={{ background: "var(--gradient-primary)" }}>
-              <div className="absolute inset-0 opacity-20 pointer-events-none" style={{ backgroundImage: "linear-gradient(135deg, transparent 40%, rgba(255,255,255,0.25) 50%, transparent 60%)" }} />
-              <div className="relative text-[10px] uppercase tracking-[0.22em] font-bold opacity-90">Valor Final Sugerido</div>
-              <div className="relative text-3xl font-extrabold mt-1.5 tabular-nums tracking-tight">{formatBRL(valorFinal)}</div>
-              <div className="relative mt-2 text-[10px] uppercase tracking-[0.2em] font-semibold opacity-75">AVALIX · Laudo Corporativo</div>
+            <div className="mt-4">
+              <PremiumGate feature="ver o valor final sugerido">
+                <div className="rounded-xl p-5 text-primary-foreground shadow-elevated relative overflow-hidden border border-primary/40" style={{ background: "var(--gradient-primary)" }}>
+                  <div className="absolute inset-0 opacity-20 pointer-events-none" style={{ backgroundImage: "linear-gradient(135deg, transparent 40%, rgba(255,255,255,0.25) 50%, transparent 60%)" }} />
+                  <div className="relative text-[10px] uppercase tracking-[0.22em] font-bold opacity-90">Valor Final Sugerido</div>
+                  <div className="relative text-3xl font-extrabold mt-1.5 tabular-nums tracking-tight">{formatBRL(valorFinal)}</div>
+                  <div className="relative mt-2 text-[10px] uppercase tracking-[0.2em] font-semibold opacity-75">AVALIX · Laudo Corporativo</div>
+                </div>
+              </PremiumGate>
             </div>
           </div>
         </Panel>
