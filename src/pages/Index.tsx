@@ -94,6 +94,15 @@ const initialRepairs = (): RepairItem[] =>
   DEFAULT_REPAIRS.map((r) => ({ label: r.label, checked: false, value: "" }));
 
 const Index = () => {
+  const navigate = useNavigate();
+  const { active: isPremium } = useSubscription();
+  const requirePremium = (feature: string) => {
+    if (isPremium) return true;
+    toast.error(`Assinatura necessária para ${feature}.`);
+    navigate("/billing");
+    return false;
+  };
+
   // Loaded eval id (null = new)
   const [evaluationId, setEvaluationId] = useState<string | null>(null);
   const [evaluationStatus, setEvaluationStatus] = useState<EvaluationStatus>("draft");
