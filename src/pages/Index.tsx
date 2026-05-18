@@ -706,6 +706,7 @@ const Index = () => {
   };
 
   const handleShare = async () => {
+    if (!requirePremium("enviar/compartilhar a avaliação")) return;
     const data = collectForPdf();
     const text = `Avaliação ${data.veiculo.marca} ${data.veiculo.modelo} (${data.veiculo.placa})\nFIPE: ${formatBRL(data.fipeValue)}\nDescontos: ${formatBRL(Math.abs(data.totalDescontos))}\nValor Final: ${formatBRL(data.valorFinal)}`;
     if (navigator.share) {
