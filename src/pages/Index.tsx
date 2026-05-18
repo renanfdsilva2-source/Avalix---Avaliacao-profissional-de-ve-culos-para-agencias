@@ -40,6 +40,9 @@ import { DocumentationPanel, emptyDocumentation, type DocumentationData } from "
 import { DraftsList } from "@/components/DraftsList";
 import { generateEvaluationPdf } from "@/lib/pdf";
 import { supabase } from "@/integrations/supabase/client";
+import { useSubscription } from "@/hooks/useSubscription";
+import { PremiumGate } from "@/components/PremiumGate";
+import { useNavigate } from "react-router-dom";
 import { uploadAllPhotos } from "@/lib/storage";
 import {
   loadLocalDraft,
@@ -91,6 +94,15 @@ const initialRepairs = (): RepairItem[] =>
   DEFAULT_REPAIRS.map((r) => ({ label: r.label, checked: false, value: "" }));
 
 const Index = () => {
+  const navigate = useNavigate();
+  const { active: isPremium } = useSubscription();
+  const requirePremium = (feature: string) => {
+    if (isPremium) return true;
+    toast.error(`Assinatura necessária para ${feature}.`);
+    navigate("/billing");
+    return false;
+  };
+
   // Loaded eval id (null = new)
   const [evaluationId, setEvaluationId] = useState<string | null>(null);
   const [evaluationStatus, setEvaluationStatus] = useState<EvaluationStatus>("draft");
@@ -659,6 +671,7 @@ const Index = () => {
   };
 
   const handleDownload = async () => {
+    if (!requirePremium("exportar PDF")) return;
     if (!online) {
       toast.error("Sem conexão. Volte para a internet para finalizar e enviar ao banco.");
       return;
@@ -693,6 +706,7 @@ const Index = () => {
   };
 
   const handleShare = async () => {
+    if (!requirePremium("enviar/compartilhar a avaliação")) return;
     const data = collectForPdf();
     const text = `Avaliação ${data.veiculo.marca} ${data.veiculo.modelo} (${data.veiculo.placa})\nFIPE: ${formatBRL(data.fipeValue)}\nDescontos: ${formatBRL(Math.abs(data.totalDescontos))}\nValor Final: ${formatBRL(data.valorFinal)}`;
     if (navigator.share) {
@@ -920,11 +934,15 @@ const Index = () => {
               <span className="font-semibold">Total descontos</span>
               <span className="font-semibold text-destructive tabular-nums">{formatBRL(totalDescontos)}</span>
             </div>
-            <div className="mt-4 rounded-xl p-5 text-primary-foreground shadow-elevated relative overflow-hidden border border-primary/40" style={{ background: "var(--gradient-primary)" }}>
-              <div className="absolute inset-0 opacity-20 pointer-events-none" style={{ backgroundImage: "linear-gradient(135deg, transparent 40%, rgba(255,255,255,0.25) 50%, transparent 60%)" }} />
-              <div className="relative text-[10px] uppercase tracking-[0.22em] font-bold opacity-90">Valor Final Sugerido</div>
-              <div className="relative text-3xl font-extrabold mt-1.5 tabular-nums tracking-tight">{formatBRL(valorFinal)}</div>
-              <div className="relative mt-2 text-[10px] uppercase tracking-[0.2em] font-semibold opacity-75">AVALIX · Laudo Corporativo</div>
+            <div className="mt-4">
+              <PremiumGate feature="ver o valor final sugerido">
+                <div className="rounded-xl p-5 text-primary-foreground shadow-elevated relative overflow-hidden border border-primary/40" style={{ background: "var(--gradient-primary)" }}>
+                  <div className="absolute inset-0 opacity-20 pointer-events-none" style={{ backgroundImage: "linear-gradient(135deg, transparent 40%, rgba(255,255,255,0.25) 50%, transparent 60%)" }} />
+                  <div className="relative text-[10px] uppercase tracking-[0.22em] font-bold opacity-90">Valor Final Sugerido</div>
+                  <div className="relative text-3xl font-extrabold mt-1.5 tabular-nums tracking-tight">{formatBRL(valorFinal)}</div>
+                  <div className="relative mt-2 text-[10px] uppercase tracking-[0.2em] font-semibold opacity-75">AVALIX · Laudo Corporativo</div>
+                </div>
+              </PremiumGate>
             </div>
           </div>
         </Panel>

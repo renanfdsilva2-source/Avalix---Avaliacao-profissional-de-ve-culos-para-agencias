@@ -7,6 +7,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { toast } from "sonner";
 import { ArrowLeft, Calendar, Trash2, Plus, BellRing } from "lucide-react";
+import { PremiumGate } from "@/components/PremiumGate";
 
 interface Appointment {
   id: string;
@@ -92,6 +93,8 @@ export default function Agenda() {
       </header>
 
       <main className="max-w-3xl mx-auto p-4 space-y-6">
+        <PremiumGate feature="a agenda de avaliações">
+
         <form onSubmit={create} className="rounded-xl border border-border bg-card p-4 space-y-3">
           <h2 className="text-sm font-bold flex items-center gap-2"><Plus className="h-4 w-4" /> Novo agendamento</h2>
           <div className="space-y-1.5">
@@ -146,6 +149,7 @@ export default function Agenda() {
         <p className="text-[11px] text-muted-foreground text-center pt-2">
           O alarme só toca com o app aberto. Mantenha esta aba ativa para receber a notificação sonora.
         </p>
+        </PremiumGate>
       </main>
     </div>
   );
