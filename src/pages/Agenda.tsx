@@ -93,6 +93,8 @@ export default function Agenda() {
       </header>
 
       <main className="max-w-3xl mx-auto p-4 space-y-6">
+        <PremiumGate feature="a agenda de avaliações">
+
         <form onSubmit={create} className="rounded-xl border border-border bg-card p-4 space-y-3">
           <h2 className="text-sm font-bold flex items-center gap-2"><Plus className="h-4 w-4" /> Novo agendamento</h2>
           <div className="space-y-1.5">
