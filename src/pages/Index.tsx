@@ -40,6 +40,9 @@ import { DocumentationPanel, emptyDocumentation, type DocumentationData } from "
 import { DraftsList } from "@/components/DraftsList";
 import { generateEvaluationPdf } from "@/lib/pdf";
 import { supabase } from "@/integrations/supabase/client";
+import { useSubscription } from "@/hooks/useSubscription";
+import { PremiumGate } from "@/components/PremiumGate";
+import { useNavigate } from "react-router-dom";
 import { uploadAllPhotos } from "@/lib/storage";
 import {
   loadLocalDraft,
