@@ -8,7 +8,14 @@ import { Badge } from "@/components/ui/badge";
 import { CheckCircle2, Loader2 } from "lucide-react";
 import { useSubscription } from "@/hooks/useSubscription";
 
-const PRICE_ID = "price_1TX2FQIQMOY14aKmD0m61ZWw";
+// Stripe Price IDs - Atualizado em 2026-05-19
+const PRICE_IDS = {
+  plan1: "price_1TX2FQIQMOY14aKmrFOjQxrP",
+  plan2: "price_1TX2FQIQMOY14aKmZdT9yiZy",
+  plan3: "price_1TX2FQIQMOY14aKmD0m61ZWw",
+};
+
+const PRICE_ID = PRICE_IDS.plan3; // Plano padrão
 
 const Billing = () => {
   const sub = useSubscription();
@@ -19,7 +26,7 @@ const Billing = () => {
   useEffect(() => {
     const status = params.get("status");
     if (status === "success") {
-      toast.success("Pagamento conclu\u00eddo! Atualizando assinatura\u2026");
+      toast.success("Pagamento concluído! Atualizando assinatura…");
       sub.refresh();
       params.delete("status");
       params.delete("session_id");
@@ -40,7 +47,7 @@ const Billing = () => {
       });
       if (error) throw error;
       if (data?.url) window.location.href = data.url;
-      else throw new Error("URL de checkout n\u00e3o retornada");
+      else throw new Error("URL de checkout não retornada");
     } catch (e) {
       toast.error((e as Error).message);
     } finally {
@@ -54,7 +61,7 @@ const Billing = () => {
       const { data, error } = await supabase.functions.invoke("customer-portal");
       if (error) throw error;
       if (data?.url) window.location.href = data.url;
-      else throw new Error("URL do portal n\u00e3o retornada");
+      else throw new Error("URL do portal não retornada");
     } catch (e) {
       toast.error((e as Error).message);
     } finally {
@@ -67,7 +74,7 @@ const Billing = () => {
       <header>
         <h1 className="text-2xl font-semibold">Assinatura</h1>
         <p className="text-sm text-muted-foreground">
-          Gerencie seu plano e pagamentos com seguran\u00e7a via Stripe.
+          Gerencie seu plano e pagamentos com segurança via Stripe.
         </p>
       </header>
 
@@ -78,14 +85,14 @@ const Billing = () => {
             <CardDescription>Atualizado em tempo real com a Stripe.</CardDescription>
           </div>
           <Badge variant={sub.active ? "default" : "secondary"}>
-            {sub.loading ? "verificando\u2026" : sub.status}
+            {sub.loading ? "verificando…" : sub.status}
           </Badge>
         </CardHeader>
         <CardContent className="space-y-2 text-sm">
           {sub.plan && <p>Plano: <span className="font-medium">{sub.plan}</span></p>}
           {sub.current_period_end && (
             <p>
-              {sub.cancel_at_period_end ? "Encerra em " : "Pr\u00f3xima renova\u00e7\u00e3o em "}
+              {sub.cancel_at_period_end ? "Encerra em " : "Próxima renovação em "}
               <span className="font-medium">
                 {new Date(sub.current_period_end).toLocaleDateString("pt-BR")}
               </span>
@@ -102,7 +109,7 @@ const Billing = () => {
       <Card>
         <CardHeader>
           <CardTitle>Plano Avalix Pro</CardTitle>
-          <CardDescription>Acesso completo \u00e0 plataforma de avalia\u00e7\u00e3o.</CardDescription>
+          <CardDescription>Acesso completo à plataforma de avaliação.</CardDescription>
         </CardHeader>
         <CardContent className="flex flex-col gap-3">
           {sub.active ? (
