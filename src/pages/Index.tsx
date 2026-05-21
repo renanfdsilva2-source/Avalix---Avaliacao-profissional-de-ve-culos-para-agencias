@@ -54,6 +54,7 @@ import {
   type OfflineQueueItem,
 } from "@/lib/localDraft";
 import { getErrorMessage, retryWithBackoff } from "@/lib/resilience";
+import { usePlacaLookup } from "@/hooks/usePlacaLookup";
 
 type Cambio = "manual" | "automatico" | null;
 type SimNao = "sim" | "nao" | null;
@@ -96,6 +97,7 @@ const initialRepairs = (): RepairItem[] =>
 const Index = () => {
   const navigate = useNavigate();
   const { active: isPremium } = useSubscription();
+  const { consultarPlaca, loading: loadingPlaca } = usePlacaLookup();
   const requirePremium = (feature: string) => {
     if (isPremium) return true;
     toast.error(`Assinatura necessária para ${feature}.`);
@@ -724,6 +726,16 @@ const Index = () => {
     setPhotos((p) => [...p, { key: `extra_${Date.now()}`, label: `Extra ${idx}`, src: null }]);
   };
 
+  const handleConsultarPlaca = async () => {
+    const dados = await consultarPlaca(placa);
+    if (!dados) return;
+    if (dados.marca) setMarca(dados.marca);
+    if (dados.modelo) setModelo(dados.modelo);
+    if (dados.ano) setAno(String(dados.ano));
+    if (dados.cor) setCor(dados.cor);
+    if (dados.fipe) setFipe(String(dados.fipe));
+  };
+
   return (
     <div className="min-h-screen pb-32">
       <header className="sticky top-0 z-30 backdrop-blur-xl border-b border-border/70" style={{ background: "var(--gradient-header)" }}>
@@ -778,7 +790,19 @@ const Index = () => {
 
       <main className="max-w-2xl mx-auto px-4 py-6 space-y-5">
         <Panel id="sec-veiculo" icon={<Car className="h-5 w-5" />} title="Dados do Veículo">
-          <Field label="Placa" placeholder="ABC1D23" value={placa} onChange={(e) => setPlaca(e.target.value.toUpperCase())} maxLength={8} className="uppercase tracking-widest font-mono" />
+          <div className="flex gap-2 items-end">
+            <div className="flex-1">
+              <Field label="Placa" placeholder="ABC1D23" value={placa} onChange={(e) => setPlaca(e.target.value.toUpperCase())} maxLength={8} className="uppercase tracking-widest font-mono" />
+            </div>
+            <button
+              type="button"
+              onClick={handleConsultarPlaca}
+              disabled={loadingPlaca || placa.replace(/[^A-Za-z0-9]/g, "").length < 7}
+              className="h-10 px-4 rounded-lg btn-primary-corp text-xs font-bold uppercase tracking-wider disabled:opacity-40 whitespace-nowrap mb-0.5"
+            >
+              {loadingPlaca ? "Buscando…" : "Consultar"}
+            </button>
+          </div>
           <div className="grid grid-cols-2 gap-3">
             <Field label="Marca" placeholder="Toyota" value={marca} onChange={(e) => setMarca(e.target.value)} />
             <Field label="Modelo" placeholder="Corolla" value={modelo} onChange={(e) => setModelo(e.target.value)} />
