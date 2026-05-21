@@ -19,6 +19,7 @@ import NotFound from "./pages/NotFound.tsx";
 import { AlarmModal } from "@/components/AlarmModal";
 import { useAppointmentAlarm } from "@/hooks/useAppointmentAlarm";
 import { withAuthTimeout } from "@/lib/authTimeout";
+import { PwaInstallPrompt } from "@/components/PwaInstallPrompt";
 
 const queryClient = new QueryClient();
 
@@ -114,6 +115,7 @@ const App = () => (
       <Sonner />
       <BrowserRouter>
         <Gate />
+        <PwaInstallPrompt />
       </BrowserRouter>
     </TooltipProvider>
   </QueryClientProvider>

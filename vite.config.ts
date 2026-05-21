@@ -4,7 +4,6 @@ import path from "path";
 import { componentTagger } from "lovable-tagger";
 import { VitePWA } from "vite-plugin-pwa";
 
-// https://vitejs.dev/config/
 export default defineConfig(({ mode }) => ({
   server: {
     host: "::",
@@ -19,12 +18,11 @@ export default defineConfig(({ mode }) => ({
     VitePWA({
       registerType: "autoUpdate",
       devOptions: { enabled: false },
-      includeAssets: ["favicon.ico", "apple-touch-icon.png"],
+      includeAssets: ["favicon.ico", "apple-touch-icon.png", "icon-192.png", "icon-512.png", "logo-avalix.png"],
       manifest: {
         name: "Avalix – Avaliação Automotiva",
         short_name: "Avalix",
-        description:
-          "Plataforma corporativa de avaliação profissional de veículos.",
+        description: "Plataforma corporativa de avaliação profissional de veículos.",
         theme_color: "#0d111a",
         background_color: "#07111F",
         display: "standalone",
@@ -32,9 +30,18 @@ export default defineConfig(({ mode }) => ({
         scope: "/",
         start_url: "/",
         lang: "pt-BR",
+        categories: ["business", "productivity"],
         icons: [
-          { src: "/icon-192.png", sizes: "192x192", type: "image/png" },
-          { src: "/icon-512.png", sizes: "512x512", type: "image/png" },
+          {
+            src: "/icon-192.png",
+            sizes: "192x192",
+            type: "image/png",
+          },
+          {
+            src: "/icon-512.png",
+            sizes: "512x512",
+            type: "image/png",
+          },
           {
             src: "/icon-512.png",
             sizes: "512x512",
@@ -42,34 +49,80 @@ export default defineConfig(({ mode }) => ({
             purpose: "any maskable",
           },
         ],
+        screenshots: [
+          {
+            src: "/logo-avalix.png",
+            sizes: "1080x1080",
+            type: "image/png",
+            form_factor: "narrow",
+            label: "Avaliação de Veículos Avalix",
+          },
+        ],
       },
       workbox: {
-        navigateFallbackDenylist: [/^\/~oauth/],
-        // Allow large photo files to be precached/cached at runtime
+        navigateFallback: "/",
+        navigateFallbackDenylist: [/^\\/~oauth/, /^\\/api\//],
         maximumFileSizeToCacheInBytes: 8 * 1024 * 1024,
+
+        // Pré-cache de todos os assets do build
+        globPatterns: ["**/*.{js,css,html,ico,png,svg,woff,woff2}"],
+
         runtimeCaching: [
+          // Página principal — tenta rede, cai no cache
           {
             urlPattern: ({ request }) => request.mode === "navigate",
             handler: "NetworkFirst",
-            options: { cacheName: "html", networkTimeoutSeconds: 3 },
+            options: {
+              cacheName: "avalix-html",
+              networkTimeoutSeconds: 4,
+              cacheableResponse: { statuses: [0, 200] },
+            },
           },
-          // Cache uploaded photos (Supabase Storage signed URLs) so they
-          // remain visible when offline.
+
+          // Assets estáticos (JS, CSS, fontes, imagens do app)
+          {
+            urlPattern: ({ request }) =>
+              ["script", "style", "font", "image"].includes(request.destination),
+            handler: "StaleWhileRevalidate",
+            options: {
+              cacheName: "avalix-static",
+              expiration: { maxEntries: 200, maxAgeSeconds: 60 * 60 * 24 * 30 },
+            },
+          },
+
+          // Fotos salvas no Supabase Storage — ficam disponíveis offline
           {
             urlPattern: /\/storage\/v1\/object\/.*/i,
             handler: "CacheFirst",
             options: {
-              cacheName: "evaluation-photos",
+              cacheName: "avalix-fotos",
               expiration: { maxEntries: 500, maxAgeSeconds: 60 * 60 * 24 * 90 },
               cacheableResponse: { statuses: [0, 200] },
             },
           },
-          // Cache static assets (fonts, images shipped with the app)
+
+          // API do Supabase — tenta rede, usa cache se offline
           {
-            urlPattern: ({ request }) =>
-              ["image", "font", "style", "script"].includes(request.destination),
-            handler: "StaleWhileRevalidate",
-            options: { cacheName: "static-assets" },
+            urlPattern: /\/rest\/v1\/.*/i,
+            handler: "NetworkFirst",
+            options: {
+              cacheName: "avalix-api",
+              networkTimeoutSeconds: 5,
+              expiration: { maxEntries: 100, maxAgeSeconds: 60 * 60 * 24 },
+              cacheableResponse: { statuses: [0, 200] },
+            },
+          },
+
+          // Auth do Supabase — sempre rede (nunca cachear tokens)
+          {
+            urlPattern: /\/auth\/v1\/.*/i,
+            handler: "NetworkOnly",
+          },
+
+          // Edge Functions (consulta-placa etc.) — tenta rede, sem cache
+          {
+            urlPattern: /\/functions\/v1\/.*/i,
+            handler: "NetworkOnly",
           },
         ],
       },
@@ -79,6 +132,13 @@ export default defineConfig(({ mode }) => ({
     alias: {
       "@": path.resolve(__dirname, "./src"),
     },
-    dedupe: ["react", "react-dom", "react/jsx-runtime", "react/jsx-dev-runtime", "@tanstack/react-query", "@tanstack/query-core"],
+    dedupe: [
+      "react",
+      "react-dom",
+      "react/jsx-runtime",
+      "react/jsx-dev-runtime",
+      "@tanstack/react-query",
+      "@tanstack/query-core",
+    ],
   },
 }));
