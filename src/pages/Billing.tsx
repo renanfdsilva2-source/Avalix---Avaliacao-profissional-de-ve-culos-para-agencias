@@ -10,25 +10,25 @@ import { useSubscription } from "@/hooks/useSubscription";
 
 const PLANS = [
   {
-    priceId: "price_1TX2FQIQMOY14aKmrFOjQxrP",
+    priceId: "price_1TX2FQIQMOY14aKmD0m61ZWw",
     nome: "Mensal",
     valor: "R$ 69,90",
     periodo: "por mês",
-    destaque: true,
+    destaque: false,
   },
   {
-    priceId: "price_1TX2FQIQMOY14aKmZdT9yiZy",
+    priceId: "price_1TX2FQIQMOY14aKmrFOjQxrP",
     nome: "Trimestral",
     valor: "R$ 208,00",
     periodo: "a cada 3 meses",
     destaque: false,
   },
   {
-    priceId: "price_1TX2FQIQMOY14aKmD0m61ZWw",
+    priceId: "price_1TX2FQIQMOY14aKmZdT9yiZy",
     nome: "Anual",
     valor: "R$ 837,00",
     periodo: "por ano",
-    destaque: false,
+    destaque: true,
   },
 ];
 
@@ -150,7 +150,7 @@ const Billing = () => {
                   <CardTitle className="text-base">{plan.nome}</CardTitle>
                   {plan.destaque && (
                     <Badge className="text-[10px] flex items-center gap-1">
-                      <Star className="h-3 w-3" /> Recomendado
+                      <Star className="h-3 w-3" /> Plano Ideal
                     </Badge>
                   )}
                 </div>
